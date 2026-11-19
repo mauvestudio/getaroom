@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <link rel="icon" type="image/x-icon" href="./favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="./favicon-32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./favicon-16.png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Get a Room" />
+    <meta name="theme-color" content="#181816" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fdfcfa" media="(prefers-color-scheme: light)" />
+    <title>Get a Room</title>
+
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("amble-theme");
+          var dark =
+            theme === "dark" ||
+            (!theme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) {
+            document.documentElement.classList.add("dark");
+            document.documentElement.style.backgroundColor = "#181816";
+            document.documentElement.style.colorScheme = "dark";
+          } else {
+            document.documentElement.classList.remove("dark");
+            document.documentElement.style.backgroundColor = "#fdfcfa";
+            document.documentElement.style.colorScheme = "light";
+          }
+
+          var standalone =
+            window.navigator.standalone === true ||
+            (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+          if (standalone) {
+            document.documentElement.classList.add("ios-pwa-standalone");
+            document.documentElement.style.setProperty(
+              "--safe-area-top",
+              "max(env(safe-area-inset-top, 0px), 54px)",
+            );
+            document.documentElement.style.setProperty(
+              "--safe-area-bottom",
+              "max(env(safe-area-inset-bottom, 0px), 24px)",
+            );
+          }
+        } catch (_) {}
+      })();
+
+      document.addEventListener("gesturestart", function (event) {
+        event.preventDefault();
+      });
+
+      if (typeof window !== "undefined" && !window.ethereum) {
+        try {
+          window.ethereum = { selectedAddress: undefined };
+        } catch (_) {}
+      }
+
+      window.addEventListener(
+        "error",
+        function (event) {
+          var message = event && event.message ? String(event.message) : "";
+          if (
+            message === "Script error." ||
+            message.indexOf("ethereum") !== -1 ||
+            message.indexOf("selectedAddress") !== -1 ||
+            (event.filename &&
+              event.filename.indexOf(window.location.host) === -1 &&
+              event.filename.indexOf("127.0.0.1") === -1 &&
+              event.filename.indexOf("localhost") === -1)
+          ) {
+            event.stopImmediatePropagation();
+            if (event.preventDefault) event.preventDefault();
+          }
+        },
+        true,
+      );
+    </script>
+
+    <style>
+      html,
+      body {
+        position: fixed;
+        inset: 0;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+        touch-action: manipulation;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      button > svg,
+      button > svg *,
+      [role="button"] > svg,
+      [role="button"] > svg * {
+        pointer-events: none;
+      }
+      html.dark,
+      html.dark body {
+        background-color: #181816 !important;
+        color: #e5e5df !important;
+      }
+      html:not(.dark),
+      html:not(.dark) body {
+        background-color: #fdfcfa !important;
+        color: #393a34 !important;
+      }
+      input,
+      textarea,
+      select {
+        font-size: 16px !important;
+        touch-action: manipulation;
+      }
+      @media (min-width: 640px) {
+        input,
+        textarea,
+        select {
+          font-size: 14px !important;
+        }
+      }
+    </style>
+
+    <script type="module" src="./frontend.tsx" async></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

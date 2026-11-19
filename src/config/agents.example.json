@@ -1,0 +1,6 @@
+{
+  "agents": [
+    { "id": "general", "name": "Agent général", "role": "Recherche et tâches du quotidien", "avatar": "robot.png", "accentColor": "#5EE6F2", "paseo": {} },
+    { "id": "developer", "name": "Agent développeur", "role": "Code, tests et relectures", "avatar": "medecin.png", "accentColor": "#5B9BFF", "paseo": {} }
+  ]
+}

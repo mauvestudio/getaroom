@@ -1,0 +1,30 @@
+import React from "react";
+import { usePaseo } from "../../context/PaseoContext";
+import { cn } from "../../lib/utils";
+import { PressButton } from "../ui/button";
+
+export function StatusBadge({ onClick }: { onClick?: () => void }) {
+  const { connectionState } = usePaseo();
+  const isConnected = connectionState === "connected";
+
+  return (
+    <PressButton
+      onPress={onClick}
+      className={cn(
+        "h-7 w-7 sm:h-auto sm:w-auto p-1 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium",
+        "flex items-center justify-center sm:inline-flex sm:gap-1.5",
+        "bg-secondary/60 hover:bg-secondary border border-border/40 transition-colors cursor-pointer text-muted-foreground shrink-0 touch-manipulation",
+      )}
+      title={`Daemon Paseo : ${connectionState} (${isConnected ? "prêt" : "déconnecté"})`}
+      aria-label={`Daemon Paseo : ${isConnected ? "prêt" : "déconnecté"}`}
+    >
+      <span
+        className={cn(
+          "inline-block w-2 h-2 rounded-full shrink-0",
+          isConnected ? "bg-emerald-500" : "bg-destructive",
+        )}
+      />
+      <span className="hidden sm:inline">{isConnected ? "Prêt" : "Déconnecté"}</span>
+    </PressButton>
+  );
+}

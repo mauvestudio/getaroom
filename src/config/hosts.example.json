@@ -1,0 +1,5 @@
+{
+  "hosts": [
+    { "id": "remote-example", "name": "Remote Paseo", "url": "wss://paseo.example.com/ws", "enabled": false }
+  ]
+}

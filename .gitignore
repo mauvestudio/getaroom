@@ -1,0 +1,57 @@
+# dependencies (bun install)
+node_modules
+
+# output
+out
+dist
+src-tauri/target
+src-tauri/binaries
+.bun-build
+*.tgz
+
+# code coverage
+coverage
+*.lcov
+
+# logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+src/config/agents.json
+src/config/hosts.json
+.getaroom/
+.agentsroom/
+.*.bun-build
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Finder (MacOS) folder config
+.DS_Store
+
+# Agent skills
+.agents/skills
+
+# Historique des fils (SQLite)
+data/
+.mcp.json
+.agentsroom/handoff-transcript-*.txt
+.agentsroom/handoff-summary-*.md
+.agentsroom/fork-context-*.txt
+.agentsroom/transfer-context-*.txt
+.agentsroom/handoff-context-*.txt
