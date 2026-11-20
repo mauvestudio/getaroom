@@ -99,6 +99,16 @@ export function useI18n(): I18nValue {
   return value;
 }
 
+/** Langue active, lisible hors React (formats de dates, pourcentages…). */
+export function currentLanguage(): Language {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === "fr" || stored === "en" ? stored : navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
+  } catch {
+    return "fr";
+  }
+}
+
 /** Traduit une chaîne affichée hors DOM (Canvas, notifications natives). */
 export function tr(value: string): string {
   try {

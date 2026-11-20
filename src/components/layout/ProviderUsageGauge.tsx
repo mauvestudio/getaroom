@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
-import { usePaseo } from "../../context/PaseoContext";
-import type { ProviderUsage, ProviderUsageWindow } from "../../lib/paseo/types";
+import { useProviderUsage } from "../../lib/useProviderUsage";
+import type { ProviderUsageWindow } from "../../lib/paseo/types";
 import { PressButton } from "../ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 
@@ -25,35 +25,9 @@ function getShortLabel(window: ProviderUsageWindow): string {
 }
 
 export function ProviderUsageGauge() {
-  const { client, connectionState } = usePaseo();
-  const [providers, setProviders] = useState<ProviderUsage[]>([]);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  // Source partagée avec la fiche « Fenêtre de contexte » : une seule requête au daemon.
+  const { providers, error, loading, refresh } = useProviderUsage();
   const [open, setOpen] = useState(false);
-
-  const refresh = useCallback(async () => {
-    if (connectionState !== "connected") {
-      setProviders([]);
-      setError("Connexion au daemon Paseo indisponible.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await client.listProviderUsage();
-      setProviders(result.providers || []);
-      setError("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [client, connectionState]);
-
-  useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(timer);
-  }, [refresh]);
 
   const provider = useMemo(
     () => providers.find((item) => item.status === "available" && item.windows.length > 0) || providers[0],

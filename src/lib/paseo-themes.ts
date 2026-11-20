@@ -84,6 +84,12 @@ const STATUS = {
   dark: { success: "#35c264", danger: "#f7796d", warning: "#db932e", running: "#5caaf6" },
 };
 
+/** Couleurs « statusSuccess/Warning/Danger » de Paseo : remplissage des barres de quotas. */
+const USAGE_FILL = {
+  light: { ok: "#3e704a", warning: "#7b5d39", danger: "#9d433b" },
+  dark: { ok: "#6cb17b", warning: "#c09664", danger: "#d8847b" },
+};
+
 /** Couleurs ANSI du terminal Paseo. */
 export const TERMINAL_ANSI = {
   light: {
@@ -142,6 +148,11 @@ export function skinVariables(id: SkinId): Record<string, string> {
     "--status-warning": status.warning,
     "--status-running": status.running,
     "--terminal-background": p.surface0,
+    "--surface-3": p.surface3,
+    "--border-accent": p.borderAccent,
+    "--usage-ok": USAGE_FILL[p.scheme].ok,
+    "--usage-warning": USAGE_FILL[p.scheme].warning,
+    "--usage-danger": USAGE_FILL[p.scheme].danger,
   };
 }
 

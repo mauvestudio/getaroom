@@ -457,5 +457,11 @@
   "Skins de Paseo. Le terminal et les pastilles d’état suivent le skin choisi.": "Paseo skins. The terminal and status dots follow the selected skin.",
   "Thème principal": "Main theme",
   "Auto": "Auto",
-  "Variantes sombres": "Dark variants"
+  "Variantes sombres": "Dark variants",
+  "utilisés": "used",
+  "Coût de la session :": "Session cost:",
+  "Aucune mesure disponible pour cette session.": "No measurement available for this session.",
+  "Actualiser les quotas": "Refresh quotas",
+  "Utilisé :": "Used:",
+  "% utilisés": "% used"
 }
