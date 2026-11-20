@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SKIN_OPTIONS } from "../../lib/paseo-themes";
 import { Bot, Check, ChevronRight, Cpu, KeyRound, Loader2, Monitor, Moon, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, Wifi } from "lucide-react";
 import { usePaseo } from "../../context/PaseoContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -149,7 +150,26 @@ function InterfacePanel() {
   };
   return <div className="space-y-5">
     <section className="space-y-2"><label htmlFor="getaroom-language" className="text-sm font-semibold">{t("Langue / Language")}</label><select data-no-translate id="getaroom-language" value={language} onChange={(event) => setLanguage(event.target.value as "en" | "fr")} className="box-border h-10 w-full max-w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"><option value="en">English</option><option value="fr">Français</option></select></section>
-    <section className="space-y-2"><h3 className="text-sm font-semibold">Apparence</h3><div className="grid grid-cols-3 gap-2">{([["light", "Clair", Sun], ["dark", "Sombre", Moon], ["system", "Système", Monitor]] as const).map(([id, label, Icon]) => <PressButton key={id} onPress={() => setTheme(id)} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-xs ${theme === id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}><Icon className="h-3.5 w-3.5" />{label}</PressButton>)}</div></section>
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">Apparence</h3>
+      <p className="text-[11px] text-muted-foreground">Skins de Paseo. Le terminal et les pastilles d’état suivent le skin choisi.</p>
+      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Thème principal">
+        {([["light", "Clair", Sun], ["dark", "Sombre", Moon], ["system", "Auto", Monitor]] as const).map(([id, label, Icon]) => (
+          <PressButton key={id} role="radio" aria-checked={theme === id} onPress={() => setTheme(id)} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-xs ${theme === id ? "border-ring bg-ring/10 text-foreground ring-1 ring-ring/40" : "border-border text-muted-foreground hover:bg-muted"}`}>
+            <Icon className="h-3.5 w-3.5" />{label}
+          </PressButton>
+        ))}
+      </div>
+      <h4 className="pt-1 text-[11px] font-medium text-muted-foreground">Variantes sombres</h4>
+      <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Variantes sombres">
+        {SKIN_OPTIONS.filter((option) => option.group === "variant").map((option) => (
+          <PressButton key={option.id} role="radio" aria-checked={theme === option.id} onPress={() => setTheme(option.id)} title={option.label} className={`flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-lg border px-1 py-2 text-[10px] ${theme === option.id ? "border-ring bg-ring/10 text-foreground ring-1 ring-ring/40" : "border-border text-muted-foreground hover:bg-muted"}`}>
+            <span className="h-6 w-6 rounded-full border border-border/80 shadow-inner" style={{ background: option.swatch }} aria-hidden />
+            <span className="truncate">{option.label}</span>
+          </PressButton>
+        ))}
+      </div>
+    </section>
     <section className="space-y-2"><h3 className="text-sm font-semibold">Densité d’affichage</h3><div className="flex gap-2">{([["comfortable", "Confortable"], ["compact", "Compacte"]] as const).map(([id, label]) => <PressButton key={id} onPress={() => { setDensity(id); localStorage.setItem(DENSITY_KEY, id); document.documentElement.dataset.density = id; }} className={`min-h-10 rounded-lg border px-3 text-xs ${density === id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}>{label}</PressButton>)}</div></section>
     <section className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"><div><h3 className="text-xs font-semibold">Notifications macOS</h3><p className="mt-1 text-[10px] text-muted-foreground">Alerte lors de la fin d’une tâche d’agent en arrière-plan.</p>{notice && <p role="status" className="mt-1 text-[10px] text-muted-foreground">{notice}</p>}</div><input type="checkbox" checked={notifications} onChange={() => void toggleNotifications()} aria-label="Activer les notifications macOS" className="h-4 w-4 accent-primary" /></section>
     <section className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"><div><h3 className="text-xs font-semibold">Notifications de validation</h3><p className="mt-1 text-[10px] text-muted-foreground">Notification macOS quand un agent demande une validation et que getaroom n’est pas au premier plan.</p></div><input type="checkbox" checked={approvalNotifications} onChange={toggleApprovalNotifications} aria-label="Activer les notifications de validation" className="h-4 w-4 accent-primary" /></section>

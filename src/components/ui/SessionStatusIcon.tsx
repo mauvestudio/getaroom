@@ -28,11 +28,12 @@ export function SessionStatusIcon({ state, idle = null, className, color }: Prop
       </span>
     );
   }
+  // Couleurs des pastilles d'état de Paseo, fournies par le skin actif (variables --status-*).
   const tone = state === "finished"
-    ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,.18)]"
+    ? "bg-[var(--status-success)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--status-success)_22%,transparent)]"
     : state === "permission"
-      ? "bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,.2)] motion-safe:animate-pulse"
-      : "bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,.18)]";
+      ? "bg-[var(--status-warning)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--status-warning)_24%,transparent)] motion-safe:animate-pulse"
+      : "bg-[var(--status-danger)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--status-danger)_22%,transparent)]";
   return (
     <span role="status" aria-label={label} title={label} className={cn("inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center", className)}>
       <span className={cn("h-[7px] w-[7px] rounded-full", tone)} aria-hidden />

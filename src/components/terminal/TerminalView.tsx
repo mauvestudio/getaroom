@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { terminalTheme } from "../../lib/paseo-themes";
 import { usePaseo } from "../../context/PaseoContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Terminal as XTerm } from "@xterm/xterm";
@@ -13,23 +14,10 @@ interface TerminalViewProps {
   isActive?: boolean;
 }
 
-const darkTheme = {
-  background: "#181816",
-  foreground: "#e5e5df",
-  cursor: "#f59e0b",
-  selectionBackground: "#33332d",
-};
-
-const lightTheme = {
-  background: "#fdfcfa",
-  foreground: "#393a34",
-  cursor: "#d97706",
-  selectionBackground: "#e8e4dc",
-};
 
 export function TerminalView({ slot, terminalId, isActive = true }: TerminalViewProps) {
   const { client } = usePaseo();
-  const { isDark } = useTheme();
+  const { skin } = useTheme();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -48,7 +36,7 @@ export function TerminalView({ slot, terminalId, isActive = true }: TerminalView
         cursorBlink: true,
         fontSize: 13,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        theme: isDark ? darkTheme : lightTheme,
+        theme: terminalTheme(skin),
       });
 
       fitAddon = new FitAddon();
@@ -108,9 +96,9 @@ export function TerminalView({ slot, terminalId, isActive = true }: TerminalView
   // Dynamically update theme on theme change without disposing xterm
   useEffect(() => {
     if (xtermRef.current) {
-      xtermRef.current.options.theme = isDark ? darkTheme : lightTheme;
+      xtermRef.current.options.theme = terminalTheme(skin);
     }
-  }, [isDark]);
+  }, [skin]);
 
   // Output stream & restore subscription
   useEffect(() => {

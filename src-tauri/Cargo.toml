@@ -1,6 +1,6 @@
 [package]
 name = "getaroom"
-version = "0.1.3"
+version = "0.1.4"
 description = "Get a Room — interface native pour Paseo"
 authors = ["Mauve"]
 edition = "2021"

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { terminalTheme } from "../../lib/paseo-themes";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { usePaseo } from "../../context/PaseoContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -9,19 +10,6 @@ import { Plus, Terminal as TerminalIcon } from "lucide-react";
 import { PressButton } from "../ui/button";
 import "@xterm/xterm/css/xterm.css";
 
-const darkTheme = {
-  background: "#181816",
-  foreground: "#e5e5df",
-  cursor: "#f59e0b",
-  selectionBackground: "#33332d",
-};
-
-const lightTheme = {
-  background: "#fdfcfa",
-  foreground: "#393a34",
-  cursor: "#d97706",
-  selectionBackground: "#e8e4dc",
-};
 
 export function TerminalDrawer() {
   const { client } = usePaseo();
@@ -32,7 +20,7 @@ export function TerminalDrawer() {
     createTerminal,
     drawerOpen,
   } = useWorkspace();
-  const { isDark } = useTheme();
+  const { skin } = useTheme();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -53,7 +41,7 @@ export function TerminalDrawer() {
         cursorBlink: true,
         fontSize: 12,
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        theme: isDark ? darkTheme : lightTheme,
+        theme: terminalTheme(skin),
       });
 
       fitAddon = new FitAddon();
@@ -135,9 +123,9 @@ export function TerminalDrawer() {
   // Dynamically update theme without recreation
   useEffect(() => {
     if (xtermRef.current) {
-      xtermRef.current.options.theme = isDark ? darkTheme : lightTheme;
+      xtermRef.current.options.theme = terminalTheme(skin);
     }
-  }, [isDark]);
+  }, [skin]);
 
   // Output stream and restore
   useEffect(() => {

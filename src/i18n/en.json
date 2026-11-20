@@ -453,5 +453,9 @@
   "Projets Studio & Dev": "Studio & Dev Projects",
   "En cours": "Running",
   "Terminé": "Done",
-  "Erreur": "Error"
+  "Erreur": "Error",
+  "Skins de Paseo. Le terminal et les pastilles d’état suivent le skin choisi.": "Paseo skins. The terminal and status dots follow the selected skin.",
+  "Thème principal": "Main theme",
+  "Auto": "Auto",
+  "Variantes sombres": "Dark variants"
 }
