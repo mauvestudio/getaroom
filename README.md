@@ -4,6 +4,8 @@
 
 ![getaroom cover: one room for code projects and persistent AI agents](docs/images/getaroom-cover.jpg)
 
+![getaroom Open Space showing ROOM agents and development projects](docs/images/openspace-screenshot.png)
+
 **Not just another terminal grid.** While CLI launchers manage ephemeral local tabs, **getaroom** is a native macOS client for the [Paseo protocol (ACP)](https://github.com/getpaseo/paseo). It brings two kinds of work into one space:
 
 - **Projects · AI coding:** Work with code on your Mac or a remote Paseo host, with Git and GitHub status, file diffs, commits, branches, sync, and pull requests in the same session.
