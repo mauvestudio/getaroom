@@ -2,7 +2,7 @@
 
 🇬🇧 **English** | [🇫🇷 Français](README.fr.md)
 
-![getaroom cover: one room for code projects and persistent AI agents](docs/images/getaroom-cover.jpg)
+![getaroom cover: one room for code projects and persistent AI agents](docs/images/Paseo-cover.jpg)
 
 **Not just another terminal grid.** While CLI launchers manage ephemeral local tabs, **getaroom** is a native macOS client for the [Paseo protocol (ACP)](https://github.com/getpaseo/paseo). It brings two kinds of work into one space:
 
