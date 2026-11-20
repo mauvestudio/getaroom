@@ -1,0 +1,73 @@
+{
+  "id": "monument-citadelle",
+  "name": "Monument Citadelle",
+  "background": "bg.jpg",
+  "backgroundColor": "#080808",
+  "positions": {
+    "working": [
+      {
+        "x": 0.29,
+        "y": 0.36
+      },
+      {
+        "x": 0.42,
+        "y": 0.34
+      },
+      {
+        "x": 0.52,
+        "y": 0.34
+      },
+      {
+        "x": 0.58,
+        "y": 0.37
+      }
+    ],
+    "thinking": [
+      {
+        "x": 0.23,
+        "y": 0.35
+      },
+      {
+        "x": 0.48,
+        "y": 0.3
+      }
+    ],
+    "idle": [
+      {
+        "x": 0.68,
+        "y": 0.66
+      },
+      {
+        "x": 0.77,
+        "y": 0.63
+      },
+      {
+        "x": 0.76,
+        "y": 0.71
+      },
+      {
+        "x": 0.66,
+        "y": 0.7
+      }
+    ]
+  },
+  "waypoints": [
+    {
+      "x": 0.5,
+      "y": 0.41
+    },
+    {
+      "x": 0.55,
+      "y": 0.53
+    },
+    {
+      "x": 0.59,
+      "y": 0.63
+    }
+  ],
+  "sprite": {
+    "style": "monochrome",
+    "scale": 1.65,
+    "referenceHeight": 800
+  }
+}

@@ -10,57 +10,19 @@ import { HermesStatusBadge } from "../ui/HermesStatusBadge";
 import type { CSSProperties } from "react";
 
 /** Liste des agents dans la barre latérale (mode ROOM), avec accès Open Space en tête. */
-export function RoomAgentList({ onSelect }: { onSelect?: () => void }) {
+export function RoomAgentList({ onSelect, embedded = false }: { onSelect?: () => void; embedded?: boolean }) {
   const { agents, loadError, selectedAgentId, openAgent, statusOf } = useRoom();
   const { mode, setMode } = useMode();
   const isOpenSpace = mode === "openspace";
-  const row = "flex items-center gap-3 rounded-xl px-2.5 py-2 cursor-pointer touch-manipulation transition-colors";
+  const row = "flex items-center gap-2.5 rounded-lg px-2 py-1.5 cursor-pointer touch-manipulation transition-colors";
 
-  return (
-    <ScrollArea className="flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
-      {/* Bouton Open Space en haut de la barre latérale */}
-      <PressTarget
-        onPress={() => {
-          setMode("openspace");
-          onSelect?.();
-        }}
-        className={cn(
-          row,
-          "mb-3 border",
-          isOpenSpace
-            ? "border-sidebar-room-edge bg-sidebar-room-active text-foreground font-semibold shadow-xs"
-            : "border-border/60 bg-card/60 hover:bg-accent/60 text-foreground",
-        )}
-      >
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-            isOpenSpace ? "bg-sidebar-room-edge/15 text-sidebar-room-edge" : "bg-muted text-muted-foreground",
-          )}
-        >
-          <LayoutGrid className="h-4 w-4 pointer-events-none" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-xs font-bold tracking-tight">Open Space</span>
-          <span
-            className={cn(
-              "block text-[10px] lowercase",
-              isOpenSpace ? "text-foreground/75" : "text-muted-foreground",
-            )}
-          >
-            tour de contrôle
-          </span>
-        </div>
-      </PressTarget>
-
-      <div className="px-1.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Agents
-      </div>
+  const list = (
+    <>
       {loadError && <p className="px-2 text-xs text-destructive">Impossible de charger les agents : {loadError}</p>}
-      <ul className="space-y-1">
+      <ul className="space-y-0.5">
         {agents.map((a) => {
           const st = statusOf(a);
-          const isSelected = mode === "room" && selectedAgentId === a.id;
+          const isSelected = (mode === "room" || mode === "the-room") && selectedAgentId === a.id;
           return (
             <li key={a.id}>
               <PressTarget
@@ -74,10 +36,10 @@ export function RoomAgentList({ onSelect }: { onSelect?: () => void }) {
                 style={{ "--agent-accent": a.accentColor } as CSSProperties}
               >
                 <span
-                  className="flex h-12 w-12 shrink-0 items-end justify-center overflow-hidden rounded-xl"
-                  style={{ backgroundColor: `${a.accentColor}26` }}
+                  className="flex h-9 w-9 shrink-0 items-end justify-center overflow-hidden rounded-lg"
+                  style={{ backgroundColor: `${a.accentColor}1a` }}
                 >
-                  <img src={a.avatarUrl} alt="" className="h-11 w-11 pointer-events-none object-contain" />
+                  <img src={a.avatarUrl} alt="" className="h-8 w-8 pointer-events-none object-contain" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold text-foreground">{a.name}</span>
@@ -94,6 +56,54 @@ export function RoomAgentList({ onSelect }: { onSelect?: () => void }) {
           );
         })}
       </ul>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-1">{list}</div>;
+  }
+
+  return (
+    <ScrollArea className="flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
+      {/* Bouton Open Space en haut de la barre latérale */}
+      <PressTarget
+        onPress={() => {
+          setMode("openspace");
+          onSelect?.();
+        }}
+        className={cn(
+          row,
+          "mb-2",
+          isOpenSpace
+            ? "bg-muted/70 text-foreground"
+            : "hover:bg-muted/40 text-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+            isOpenSpace ? "text-foreground" : "text-muted-foreground",
+          )}
+        >
+          <LayoutGrid className="h-4 w-4 pointer-events-none" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-medium">Open Space</span>
+          <span
+            className={cn(
+              "block text-[10px]",
+              isOpenSpace ? "text-foreground/75" : "text-muted-foreground",
+            )}
+          >
+            tour de contrôle
+          </span>
+        </div>
+      </PressTarget>
+
+      <div className="px-2 pb-1.5 text-[10px] font-medium text-muted-foreground">
+        Agents
+      </div>
+      {list}
     </ScrollArea>
   );
 }

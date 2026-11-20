@@ -98,3 +98,14 @@ export function useI18n(): I18nValue {
   if (!value) throw new Error("useI18n requires I18nProvider");
   return value;
 }
+
+/** Traduit une chaîne affichée hors DOM (Canvas, notifications natives). */
+export function tr(value: string): string {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const language: Language = stored === "fr" || stored === "en" ? stored : navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
+    return translate(value, language);
+  } catch {
+    return value;
+  }
+}

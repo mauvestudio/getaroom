@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-export type SessionViewMode = "discussion" | "terminal";
+export type SessionViewMode = "discussion" | "terminal" | "the-room";
 
 interface SessionViewCtx {
   viewMode: SessionViewMode;

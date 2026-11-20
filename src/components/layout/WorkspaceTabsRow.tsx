@@ -39,11 +39,14 @@ export function WorkspaceTabsRow() {
   };
 
   return (
-    <div className="h-9 bg-sidebar/50 border-b border-border flex items-center justify-between px-2 gap-1 select-none shrink-0 z-10 overflow-hidden">
+    <div
+      data-tauri-drag-region
+      className="h-9 bg-background border-b border-border/60 flex items-center justify-between px-2 gap-1 select-none shrink-0 z-10 overflow-hidden"
+    >
       {/* Tabs list */}
       <div className="flex items-center gap-1 min-w-0 flex-1 h-full pt-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {isNewSessionDraft && (
-          <div aria-current="page" className="flex h-8 min-w-[120px] shrink-0 items-center gap-1.5 rounded-t-md border-x border-t-2 border-x-border/50 border-t-amber-500 bg-background px-2.5 text-xs font-medium text-foreground shadow-2xs">
+          <div aria-current="page" className="flex h-8 min-w-[120px] shrink-0 items-center gap-1.5 border-b-2 border-foreground px-2.5 text-xs font-medium text-foreground">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500" />
             <span>Nouvelle session</span>
           </div>
@@ -61,10 +64,10 @@ export function WorkspaceTabsRow() {
                 e.stopPropagation();
                 startRename(tab);
               }}
-              className={`group flex items-center gap-1.5 px-2.5 sm:px-2.5 h-8 rounded-t-md text-xs cursor-pointer transition-all shrink-0 min-w-[72px] sm:min-w-[60px] max-w-[200px] border-t border-x touch-manipulation ${
+              className={`group flex items-center gap-1.5 px-2 h-8 text-xs cursor-pointer transition-colors shrink-0 min-w-[72px] sm:min-w-[60px] max-w-[200px] border-b-2 touch-manipulation ${
                 isActive
-                  ? "bg-background text-foreground font-medium border-t-2 border-t-amber-500 border-x-border/50 shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border-transparent"
+                  ? "border-foreground text-foreground font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
               title={tab.title}
             >
@@ -73,24 +76,12 @@ export function WorkspaceTabsRow() {
                 tab.status === "running" ? (
                   <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin shrink-0" />
                 ) : (
-                  <Sparkles
-                    className={`w-3.5 h-3.5 shrink-0 ${
-                      isActive ? "text-amber-500" : "text-amber-500/70"
-                    }`}
-                  />
+                  <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
                 )
               ) : tab.kind === "terminal" ? (
-                <Terminal
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isActive ? "text-amber-500" : "text-amber-500/70"
-                  }`}
-                />
+                <Terminal className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
               ) : (
-                <GitCommit
-                  className={`w-3.5 h-3.5 shrink-0 ${
-                    isActive ? "text-amber-500" : "text-amber-500/70"
-                  }`}
-                />
+                <GitCommit className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
               )}
 
               {/* Title or Inline Edit Form */}
@@ -160,7 +151,7 @@ export function WorkspaceTabsRow() {
           title="Nouvelle session d'agent"
           aria-label="Nouvelle session d'agent"
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-500 pointer-events-none" />
+          <Sparkles className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
         </PressButton>
 
         <PressButton
@@ -170,7 +161,7 @@ export function WorkspaceTabsRow() {
           title="Nouveau terminal"
           aria-label="Nouveau terminal"
         >
-          <Terminal className="w-3.5 h-3.5 text-amber-500 pointer-events-none" />
+          <Terminal className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
         </PressButton>
 
         {gitStatus?.isGitRepo && <PressButton
@@ -184,9 +175,9 @@ export function WorkspaceTabsRow() {
           title="Changements git"
           aria-label="Changements git"
         >
-          <GitCommit className="w-3.5 h-3.5 text-amber-500 pointer-events-none" />
+          <GitCommit className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           {changedFilesCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-foreground" />
           )}
         </PressButton>}
       </div>

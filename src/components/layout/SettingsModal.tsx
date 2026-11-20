@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, ChevronRight, Cpu, KeyRound, Monitor, Moon, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, Wifi } from "lucide-react";
+import { Bot, Check, ChevronRight, Cpu, KeyRound, Loader2, Monitor, Moon, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Sun, Wifi } from "lucide-react";
 import { usePaseo } from "../../context/PaseoContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
@@ -14,11 +14,15 @@ import { PressButton } from "../ui/button";
 import { HostsSettingsPanel } from "./HostsSettingsPanel";
 import { GetaroomMark } from "../ui/GetaroomMark";
 import { ProfileSettings } from "./ProfileSettings";
+import { checkForUpdate, formatCheckTime, readStoredUpdateCheck, storeUpdateCheck, type UpdateCheckResult } from "../../lib/updater";
 import { useI18n } from "../../i18n/I18nContext";
+import { APPROVAL_NOTIFICATIONS_KEY, approvalNotificationsEnabled } from "./GlobalShortcuts";
 
 interface SettingsModalProps { isOpen: boolean; onClose: () => void; }
 type Section = "hosts" | "models" | "agents" | "security" | "interface";
-const APP_VERSION = "0.1.0";
+import pkg from "../../../package.json" with { type: "json" };
+
+const APP_VERSION = pkg.version as string;
 const DENSITY_KEY = "getaroom-display-density";
 const NOTIFICATIONS_KEY = "getaroom-native-notifications";
 
@@ -129,6 +133,12 @@ function InterfacePanel() {
   const [density, setDensity] = useState(() => localStorage.getItem(DENSITY_KEY) || "comfortable");
   const [notifications, setNotifications] = useState(() => localStorage.getItem(NOTIFICATIONS_KEY) === "true");
   const [notice, setNotice] = useState("");
+  const [approvalNotifications, setApprovalNotifications] = useState(approvalNotificationsEnabled);
+  const toggleApprovalNotifications = () => {
+    const next = !approvalNotifications;
+    setApprovalNotifications(next);
+    localStorage.setItem(APPROVAL_NOTIFICATIONS_KEY, String(next));
+  };
   const toggleNotifications = async () => {
     if (!notifications) {
       if (!("Notification" in window)) { setNotice("Les notifications ne sont pas disponibles dans ce WebView."); return; }
@@ -142,8 +152,9 @@ function InterfacePanel() {
     <section className="space-y-2"><h3 className="text-sm font-semibold">Apparence</h3><div className="grid grid-cols-3 gap-2">{([["light", "Clair", Sun], ["dark", "Sombre", Moon], ["system", "Système", Monitor]] as const).map(([id, label, Icon]) => <PressButton key={id} onPress={() => setTheme(id)} className={`flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 text-xs ${theme === id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}><Icon className="h-3.5 w-3.5" />{label}</PressButton>)}</div></section>
     <section className="space-y-2"><h3 className="text-sm font-semibold">Densité d’affichage</h3><div className="flex gap-2">{([["comfortable", "Confortable"], ["compact", "Compacte"]] as const).map(([id, label]) => <PressButton key={id} onPress={() => { setDensity(id); localStorage.setItem(DENSITY_KEY, id); document.documentElement.dataset.density = id; }} className={`min-h-10 rounded-lg border px-3 text-xs ${density === id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}>{label}</PressButton>)}</div></section>
     <section className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"><div><h3 className="text-xs font-semibold">Notifications macOS</h3><p className="mt-1 text-[10px] text-muted-foreground">Alerte lors de la fin d’une tâche d’agent en arrière-plan.</p>{notice && <p role="status" className="mt-1 text-[10px] text-muted-foreground">{notice}</p>}</div><input type="checkbox" checked={notifications} onChange={() => void toggleNotifications()} aria-label="Activer les notifications macOS" className="h-4 w-4 accent-primary" /></section>
-    <section className="rounded-xl border border-border bg-card p-4"><div className="flex items-center gap-3"><GetaroomMark className="h-12 w-12" label="Logo getaroom" /><div><h3 className="text-sm font-semibold">getaroom</h3><p className="font-mono text-[10px] text-muted-foreground">Version {APP_VERSION} · macOS · Tauri v2</p></div></div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">Espace de travail multi-hôtes propulsé par le daemon Paseo et le protocole ACP.</p></section>
-    <section className="rounded-xl border border-border p-3"><h3 className="text-xs font-semibold">Raccourcis clavier</h3><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>Ouvrir les réglages</span><kbd className="font-mono">⌘,</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Recherche rapide</span><kbd className="font-mono">⌘K</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Replier ou déplier la barre latérale</span><kbd className="font-mono">⌘\</kbd></div></section>
+    <section className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"><div><h3 className="text-xs font-semibold">Notifications de validation</h3><p className="mt-1 text-[10px] text-muted-foreground">Notification macOS quand un agent demande une validation et que getaroom n’est pas au premier plan.</p></div><input type="checkbox" checked={approvalNotifications} onChange={toggleApprovalNotifications} aria-label="Activer les notifications de validation" className="h-4 w-4 accent-primary" /></section>
+    <section className="rounded-xl border border-border bg-card p-4"><div className="flex items-center gap-3"><GetaroomMark className="h-12 w-12" label="Logo getaroom" /><div><h3 className="text-sm font-semibold">getaroom</h3><p className="font-mono text-[10px] text-muted-foreground">Version {APP_VERSION} · macOS · Tauri v2</p></div></div><p className="mt-3 text-xs leading-relaxed text-muted-foreground">Espace de travail multi-hôtes propulsé par le daemon Paseo et le protocole ACP.</p><UpdateSettingsRow /></section>
+    <section className="rounded-xl border border-border p-3"><h3 className="text-xs font-semibold">Raccourcis clavier</h3><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>Ouvrir les réglages</span><kbd className="font-mono">⌘,</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Recherche rapide</span><kbd className="font-mono">⌘K</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Replier ou déplier la barre latérale</span><kbd className="font-mono">⌘\</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Open Space · Room · Dev · The Room</span><kbd className="font-mono">⌘1 ⌘2 ⌘3 ⌘4</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Prochaine validation en attente</span><kbd className="font-mono">⌘⇧A</kbd></div><div className="mt-1 flex justify-between text-xs text-muted-foreground"><span>Calibrer The Room</span><kbd className="font-mono">⇧E</kbd></div></section>
     <ProfileSettings />
   </div>;
 }
@@ -170,4 +181,59 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       </div>
     </DialogContent>
   </Dialog>;
+}
+
+function UpdateSettingsRow() {
+  const [result, setResult] = useState<UpdateCheckResult | null>(() => readStoredUpdateCheck());
+  const [checking, setChecking] = useState(false);
+
+  const run = async () => {
+    setChecking(true);
+    const next = await checkForUpdate(APP_VERSION);
+    storeUpdateCheck(next);
+    setResult(next);
+    setChecking(false);
+  };
+
+  return (
+    <section className="mt-4 space-y-2 border-t border-border/60 pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-xs font-semibold text-foreground">Mise à jour</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {result?.available
+              ? <>v{result.latest} disponible · vérifié {formatCheckTime(result.checkedAt)}</>
+              : result?.error
+                ? <>Dernière vérification : {result.error}</>
+                : result
+                  ? <>À jour · vérifié {formatCheckTime(result.checkedAt)}</>
+                  : "Aucune vérification effectuée pour le moment."}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {result?.available && result.url && (
+            <PressButton
+              onPress={() => window.open(result.url!, "_blank", "noopener,noreferrer")}
+              className="flex min-h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[11px] text-foreground hover:bg-muted cursor-pointer touch-manipulation"
+            >
+              <Plus className="h-3 w-3" />
+              Ouvrir la release
+            </PressButton>
+          )}
+          <PressButton
+            onPress={() => void run()}
+            disabled={checking}
+            className="flex min-h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer touch-manipulation disabled:opacity-50"
+          >
+            {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Vérifier
+          </PressButton>
+        </div>
+      </div>
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        Releases suivies sur <span className="font-mono">mauvestudio/getaroom</span>. Pour pousser une nouvelle
+        version sur le staging local, relance <span className="font-mono">bun run deploy</span>.
+      </p>
+    </section>
+  );
 }

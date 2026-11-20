@@ -32,6 +32,7 @@ import type {
   WorkspaceScriptItem,
   WorkspaceScriptOperationResult,
   StartWorkspaceScriptResult,
+  ProviderUsageList,
 } from "./types";
 import { isGithubRemoteUrl } from "./git-status";
 
@@ -648,6 +649,24 @@ export class PaseoClient {
     return res as any;
   }
 
+  public async renameProject(
+    projectId: string,
+    customName: string | null,
+  ): Promise<{ customName: string | null }> {
+    return this.daemon.renameProject(projectId, customName);
+  }
+
+  public async setProjectIcon(
+    projectId: string,
+    source: { type: "automatic" } | { type: "upload"; data: string },
+  ): Promise<void> {
+    await this.daemon.setProjectIcon(projectId, source as any);
+  }
+
+  public async removeProject(projectId: string): Promise<{ removedWorkspaceIds: string[] }> {
+    return this.daemon.removeProject(projectId) as any;
+  }
+
   public async createWorktree(params: CreateWorktreeParams): Promise<CreateWorktreeResult> {
     const firstAgentContext =
       params.firstAgentContext ||
@@ -852,6 +871,10 @@ export class PaseoClient {
     return this.daemon.setAgentTimelineSubscription(agentIds);
   }
 
+  public async listProviderUsage(): Promise<ProviderUsageList> {
+    return (await this.daemon.listProviderUsage()) as unknown as ProviderUsageList;
+  }
+
   public async getProvidersSnapshot(): Promise<any> {
     return this.daemon.getProvidersSnapshot();
   }
@@ -987,6 +1010,15 @@ export class PaseoClient {
     return this.daemon.readFile(cwd, path, undefined, maxBytes);
   }
 
+  public createFileEntry(input: {
+    cwd: string;
+    parentPath: string;
+    name: string;
+    kind: "file" | "directory";
+  }) {
+    return this.daemon.createFileEntry(input);
+  }
+
   public async getGitStatus(workspaceIdOrCwd: string, onPreliminary?: (status: GitStatusSummary) => void, includeDiff = true): Promise<GitStatusSummary> {
     const empty: GitStatusSummary = {
       isGitRepo: false,
@@ -1063,11 +1095,12 @@ export class PaseoClient {
       message: params.message,
       addAll: true,
     });
-    const payload = res as any;
-    if (payload && payload.success === false) {
-      throw new Error(payload.error?.message || "Commit failed");
+    const payload = res as { success?: boolean; error?: string | { message?: string }; stderr?: string; commitSha?: string };
+    if (payload?.success === false || payload?.error) {
+      const message = typeof payload.error === "string" ? payload.error : payload.error?.message;
+      throw new Error(message || payload.stderr?.trim() || "Le commit Git a échoué.");
     }
-    return payload;
+    return payload as { commitSha: string };
   }
 
   public checkoutPrStatus(cwd: string) {

@@ -47,6 +47,7 @@ import {
   matchesUserMessageItem,
 } from "../lib/attachmentStore";
 import { chooseDefaultWorkspace, resolveWorkspaceTarget } from "../lib/workspace-target";
+import { resolveWorkspacePath } from "../lib/resolve-workspace-path";
 import { appendReasoningTimelineItem } from "../lib/paseo/timeline";
 
 export type ActiveTabKind = "agent" | "terminal" | "changes";
@@ -221,6 +222,12 @@ interface WorkspaceContextType {
   // View Mode
   summaryMode: boolean;
   setSummaryMode: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // Panneau droit Paseo : fichiers / modifications
+  rightPanelOpen: boolean;
+  setRightPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  rightPanelTab: "files" | "changes";
+  setRightPanelTab: React.Dispatch<React.SetStateAction<"files" | "changes">>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -399,6 +406,29 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("amble-summary-mode", String(summaryMode));
     } catch {}
   }, [summaryMode]);
+
+  // Panneau droit de session (Fichiers / Modifications)
+  const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("getaroom-right-panel-open") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const [rightPanelTab, setRightPanelTab] = useState<"files" | "changes">(() => {
+    try {
+      return localStorage.getItem("getaroom-right-panel-tab") === "files" ? "files" : "changes";
+    } catch {
+      return "changes";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("getaroom-right-panel-open", String(rightPanelOpen));
+      localStorage.setItem("getaroom-right-panel-tab", rightPanelTab);
+    } catch {}
+  }, [rightPanelOpen, rightPanelTab]);
 
   const [activeTabTarget, setActiveTabTarget] = useState<{
     kind: ActiveTabKind;
@@ -1032,24 +1062,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setGitStatus(null);
       return;
     }
-    if (gitStatusCwdRef.current !== cwd) {
-      gitStatusCwdRef.current = cwd;
-      setGitStatus(activeGitBranch && activeGitWorkspaceKind !== "directory"
-        ? gitStatusFromBranch(activeGitBranch)
-        : null);
-    }
     try {
+      const validCwd = await resolveWorkspacePath(cwd);
+      if (request !== gitStatusRequestRef.current) return;
+      if (gitStatusCwdRef.current !== validCwd) {
+        gitStatusCwdRef.current = validCwd;
+        setGitStatus(activeGitBranch && activeGitWorkspaceKind !== "directory"
+          ? gitStatusFromBranch(activeGitBranch)
+          : null);
+      }
       const update = (status: GitStatusSummary) => {
-        if (request === gitStatusRequestRef.current && gitStatusCwdRef.current === cwd) {
+        if (request === gitStatusRequestRef.current && gitStatusCwdRef.current === validCwd) {
           setGitStatus(status);
         }
       };
-      const res = await client.getGitStatus(cwd, update);
-      if (res && request === gitStatusRequestRef.current && gitStatusCwdRef.current === cwd) {
+      const res = await client.getGitStatus(validCwd, update);
+      if (res && request === gitStatusRequestRef.current && gitStatusCwdRef.current === validCwd) {
         setGitStatus(res);
       }
     } catch (err) {
-      console.warn("[WorkspaceProvider] getGitStatus error:", err);
+      if (request === gitStatusRequestRef.current) {
+        gitStatusCwdRef.current = null;
+        setGitStatus(null);
+        console.warn("[WorkspaceProvider] workspace path is unavailable:", err);
+      }
     }
   }, [client, activeGitCwd, activeGitBranch, activeGitWorkspaceKind, connectionState]);
 
@@ -1719,6 +1755,24 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [allAgents]);
 
+  // Deep-link de fenêtre: /?project=<id> active le projet correspondant.
+  const projectParamAppliedRef = useRef(false);
+  useEffect(() => {
+    if (projectParamAppliedRef.current) return;
+    const projectId = new URLSearchParams(window.location.search).get("project");
+    if (!projectId) {
+      projectParamAppliedRef.current = true;
+      return;
+    }
+    const exists =
+      projects.some((item) => item.id === projectId) ||
+      workspaces.some((item) => item.id === projectId);
+    if (exists) {
+      projectParamAppliedRef.current = true;
+      setActiveWorkspaceId(projectId);
+    }
+  }, [projects, workspaces, setActiveWorkspaceId]);
+
   const setActiveTab = useCallback(
     (tab: WorkspaceTabItem | { kind: ActiveTabKind; targetId: string }) => {
       newSessionDraftRef.current = false;
@@ -1746,6 +1800,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (tab.kind === "changes") {
         setIsChangesTabOpen(true);
+        setRightPanelTab("changes");
+        setRightPanelOpen(true);
       }
     },
     [terminals, timeline],
@@ -1786,6 +1842,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       try {
         if (tab.kind === "changes") {
           setIsChangesTabOpen(false);
+          setRightPanelOpen(false);
           if (activeTab?.targetId === "changes") {
             const remaining = workspaceTabs.filter((t) => t.kind !== "changes");
             if (remaining.length > 0) {
@@ -1862,9 +1919,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   );
 
   const openChangesTab = useCallback(() => {
-    setIsChangesTabOpen(true);
-    setActiveTabTarget({ kind: "changes", targetId: "changes" });
-    // Always fetch fresh status when the tab is opened — the polled state
+    setRightPanelTab("changes");
+    setRightPanelOpen(true);
+    // Always fetch fresh status when the panel is opened — the polled state
     // may be stale (e.g. external edits since last workspace switch).
     void refreshGitStatus();
   }, [refreshGitStatus]);
@@ -1939,19 +1996,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createTerminalTab = useCallback(async (): Promise<void> => {
+    const workspaceId = resolvedWorkspaceId;
     const cwd = activeWorkspace?.path;
+    if (!workspaceId || !cwd) return;
     try {
+      const canonicalCwd = await resolveWorkspacePath(cwd);
       const created = await client.createTerminal({
-        workspaceId: activeWorkspaceId || undefined,
-        cwd,
+        workspaceId,
+        cwd: canonicalCwd,
       });
-      await refreshTerminals();
+      await refreshTerminals(workspaceId);
       setActiveTerminalSlot(created.slot);
       setActiveTabTarget({ kind: "terminal", targetId: created.terminalId });
     } catch (err) {
       console.warn("[WorkspaceProvider] createTerminalTab error:", err);
     }
-  }, [client, activeWorkspace, activeWorkspaceId, refreshTerminals]);
+  }, [client, activeWorkspace, resolvedWorkspaceId, refreshTerminals]);
 
   const startWorkspaceScript = useCallback(
     async (
@@ -2708,11 +2768,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   const commitGitChanges = async (message: string) => {
     const cwd = activeWorkspace?.path;
-    if (!activeWorkspaceId || !cwd) return;
+    const workspaceId = resolvedWorkspaceId;
+    if (!workspaceId || !cwd) throw new Error("Aucun dépôt actif à commiter.");
     try {
+      const canonicalCwd = await resolveWorkspacePath(cwd);
       await client.commitGitChanges({
-        workspaceId: activeWorkspaceId,
-        cwd,
+        workspaceId,
+        cwd: canonicalCwd,
         message,
       });
       await refreshGitStatus();
@@ -2910,6 +2972,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
         summaryMode,
         setSummaryMode,
+
+        rightPanelOpen,
+        setRightPanelOpen,
+        rightPanelTab,
+        setRightPanelTab,
       }}
     >
       {children}

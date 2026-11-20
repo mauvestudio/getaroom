@@ -44,7 +44,7 @@ export function ProjectIcon({ project, client: propClient, className }: ProjectI
     return () => {
       cancelled = true;
     };
-  }, [project?.id, project?.rootPath, client]);
+  }, [project, client]);
 
   if (iconUri) {
     return (

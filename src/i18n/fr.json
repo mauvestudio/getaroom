@@ -1,4 +1,9 @@
 {
+  "Écrivez à l’agent, mentionnez des @fichiers ou utilisez les /commandes et /skills": "Écrivez à l’agent, mentionnez des @fichiers ou utilisez les /commandes et /skills",
+  "Dicter un message": "Dicter un message",
+  "Arrêter la dictée": "Arrêter la dictée",
+  "Commandes et skills": "Commandes et skills",
+  "Afficher ou masquer le résumé d’activité": "Afficher ou masquer le résumé d’activité",
   "Modifications": "Modifications",
   "Historique": "Historique",
   "Branches": "Branches",

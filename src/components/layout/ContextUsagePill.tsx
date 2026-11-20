@@ -1,71 +1,90 @@
 import React from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
-import { Meter } from "../ui/meter";
+import { resolveContextUsage } from "../../lib/context-usage";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 
+const tokenFormatter = new Intl.NumberFormat("fr-FR");
+
 export function ContextUsagePill() {
-  const { activeAgent, models, selectedModel } = useWorkspace();
+  const {
+    activeAgent,
+    models,
+    selectedModel,
+  } = useWorkspace();
 
   const usage = activeAgent?.lastUsage || activeAgent?.tokenUsage;
+  const { usedTokens, maxTokens, ratio, percentage } = resolveContextUsage(
+    activeAgent,
+    models,
+    selectedModel,
+  );
 
-  const usedTokens =
-    usage?.contextWindowUsedTokens ??
-    ((usage?.inputTokens || 0) + (usage?.cachedInputTokens || usage?.cachedTokens || 0) + (usage?.outputTokens || 0));
+  const tone =
+    percentage >= 90
+      ? "text-destructive"
+      : percentage >= 70
+        ? "text-foreground"
+        : "text-muted-foreground";
 
-  const currentModel =
-    models.find((m) => m.id === activeAgent?.model || m.id === selectedModel) ||
-    models.find((m) => m.id.endsWith(`/${activeAgent?.model || selectedModel}`));
-
-  const maxTokens =
-    usage?.contextWindowMaxTokens ||
-    usage?.contextWindow ||
-    currentModel?.contextWindow ||
-    1_000_000;
-
-  const ratio = Math.min(1, Math.max(0, usedTokens / (maxTokens || 1)));
-  const percentage = Math.round(ratio * 100);
-
-  const formatK = (tokens: number): string => {
-    if (tokens >= 1_000) {
-      return `${Math.round(tokens / 1_000)}K`;
-    }
-    return `${tokens}`;
-  };
-
-  const variant: "default" | "success" | "warning" | "danger" =
-    percentage >= 90 ? "danger" : percentage >= 70 ? "warning" : "default";
+  const size = 16;
+  const stroke = 2;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - ratio);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-medium bg-muted/60 hover:bg-muted border border-border/30 text-muted-foreground transition-colors cursor-pointer select-none shrink-0"
-          title={`Fenêtre de contexte : ${formatK(usedTokens)} / ${formatK(maxTokens)} (${percentage} %)`}
+        <span
+          role="img"
+          aria-label={`Fenêtre de contexte : ${percentage} %`}
+          title={`Fenêtre de contexte : ${tokenFormatter.format(usedTokens)} / ${tokenFormatter.format(maxTokens)} (${percentage} %)`}
+          className="hidden h-7 shrink-0 select-none items-center gap-1.5 rounded-md px-1.5 text-muted-foreground sm:inline-flex"
         >
-          <div className="hidden sm:block">
-            <Meter
-              value={usedTokens}
-              max={maxTokens}
-              size="sm"
-              variant={variant}
-              className="w-12 h-1.5"
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            className="-rotate-90 shrink-0"
+            aria-hidden="true"
+          >
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={stroke}
+              className="text-border"
             />
-          </div>
-          <span className="font-mono text-foreground font-semibold">
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              className={tone}
+            />
+          </svg>
+          <span className="font-mono text-[11px] font-medium tabular-nums text-foreground">
             {percentage}%
           </span>
-        </button>
+        </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" align="center" className="space-y-1 p-2 text-xs">
+      <TooltipContent side="top" align="end" className="space-y-1 p-2 text-xs">
         <div className="font-semibold text-foreground">Fenêtre de contexte</div>
-        <div className="text-muted-foreground font-mono">
-          {formatK(usedTokens)} / {formatK(maxTokens)} ({percentage}%)
+        <div className="font-mono text-muted-foreground">
+          {tokenFormatter.format(usedTokens)} / {tokenFormatter.format(maxTokens)} ({percentage} %)
         </div>
-        <div className="text-[10px] text-muted-foreground border-t border-border/40 pt-1 mt-1 space-y-0.5 font-mono">
-          <div>Used: {usedTokens.toLocaleString()} tokens</div>
-          <div>Capacity: {maxTokens.toLocaleString()} tokens</div>
-          <div>Remaining: {Math.max(0, maxTokens - usedTokens).toLocaleString()} tokens</div>
+        <div className="mt-1 space-y-0.5 border-t border-border/40 pt-1 font-mono text-[10px] text-muted-foreground">
+          <div>Utilisé : {tokenFormatter.format(usedTokens)} tokens</div>
+          <div>Capacité : {tokenFormatter.format(maxTokens)} tokens</div>
+          <div>Restant : {tokenFormatter.format(Math.max(0, maxTokens - usedTokens))} tokens</div>
+          {!usage && <div>Aucune mesure disponible.</div>}
         </div>
       </TooltipContent>
     </Tooltip>

@@ -28,6 +28,10 @@ function hostProxyUrl(hostId: string): string {
   return `${proto}//${window.location.host}/api/paseo/hosts/${encodeURIComponent(hostId)}/ws`;
 }
 
+const hostSignature = (host: PaseoHost) => `${host.id}|${host.name}|${host.url}|${host.token ?? ""}|${host.enabled}|${host.local ? 1 : 0}`;
+/** Évite de recréer toutes les connexions quand le relais renvoie la même liste d'hôtes que le cache. */
+const sameHosts = (a: PaseoHost[], b: PaseoHost[]) => a.length === b.length && a.every((host, index) => hostSignature(host) === hostSignature(b[index]!));
+
 export type HostConnectionState = ConnectionState | "disabled";
 
 interface PaseoContextType {
@@ -64,10 +68,24 @@ export function PaseoProvider({ children }: { children: React.ReactNode }) {
   if (!fleetRef.current) fleetRef.current = new MultiHostPaseoClient();
   const fleet = fleetRef.current;
   const localClient = useMemo(() => new PaseoClient({ url: serverUrl, token: authToken || undefined }), [serverUrl, authToken]);
-  const remoteClients = useMemo(() => hosts.filter((host) => !host.local && host.enabled).map((host) => ({
-    host,
-    client: new PaseoClient({ url: hostProxyUrl(host.id) }),
-  })), [hosts]);
+  // Une seule connexion par hôte distant : le client est réutilisé tant que l'hôte (id, URL, jeton) ne change pas.
+  const clientCacheRef = useRef(new Map<string, PaseoClient>());
+  const remoteClients = useMemo(() => {
+    const cache = clientCacheRef.current;
+    const used = new Set<string>();
+    const result = hosts.filter((host) => !host.local && host.enabled).map((host) => {
+      const key = `${host.id}|${host.url}|${host.token ?? ""}`;
+      used.add(key);
+      let connection = cache.get(key);
+      if (!connection) {
+        connection = new PaseoClient({ url: hostProxyUrl(host.id) });
+        cache.set(key, connection);
+      }
+      return { host, client: connection };
+    });
+    for (const key of [...cache.keys()]) if (!used.has(key)) cache.delete(key);
+    return result;
+  }, [hosts]);
   const entries = useMemo(() => [
     { host: LOCAL_HOST, client: localClient },
     ...remoteClients,
@@ -90,9 +108,9 @@ export function PaseoProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (!remote.length && cached.length) {
           await fetch("/api/paseo/hosts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cached) }).catch(() => {});
-          setHostsState([LOCAL_HOST, ...cached]);
+          setHostsState((current) => sameHosts(current, [LOCAL_HOST, ...cached]) ? current : [LOCAL_HOST, ...cached]);
         } else {
-          setHostsState([LOCAL_HOST, ...remote]);
+          setHostsState((current) => sameHosts(current, [LOCAL_HOST, ...remote]) ? current : [LOCAL_HOST, ...remote]);
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remote));
         }
       } catch {

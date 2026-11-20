@@ -7,18 +7,19 @@ import { Sparkles, ChevronDown, Check, Brain, Search, Eye } from "lucide-react";
 import { formatTokens } from "../../lib/utils";
 import { PressButton } from "../ui/button";
 
-export function ModelSelector({ providerFilter }: { providerFilter?: string }) {
+export function ModelSelector({ providerFilter, value, onSelect, quiet = false }: { providerFilter?: string; value?: string; onSelect?: (model: string) => void; quiet?: boolean }) {
   const { models, selectedModel, setSelectedModel } = useWorkspace();
+  const effectiveModel = value || selectedModel;
   const availableModels = providerFilter ? models.filter((m) => m.agentProvider === providerFilter) : models;
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const current =
-    availableModels.find((m) => m.id === selectedModel) ||
-    availableModels.find((m) => m.id.endsWith(`/${selectedModel}`)) || availableModels[0] || {
-      id: selectedModel,
-      name: selectedModel.replace(/^plexus\//, ""),
-      displayName: selectedModel.replace(/^plexus\//, ""),
+    availableModels.find((m) => m.id === effectiveModel) ||
+    availableModels.find((m) => m.id.endsWith(`/${effectiveModel}`)) || availableModels[0] || {
+      id: effectiveModel,
+      name: effectiveModel.replace(/^plexus\//, ""),
+      displayName: effectiveModel.replace(/^plexus\//, ""),
       provider: "custom",
       providerName: "Plexus",
     };
@@ -60,12 +61,12 @@ export function ModelSelector({ providerFilter }: { providerFilter?: string }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="h-8 sm:h-7 inline-flex shrink-0 items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg text-xs font-medium bg-muted/60 hover:bg-muted text-foreground border border-border/40 cursor-pointer transition-colors touch-manipulation sm:max-w-[320px]"
+          className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 touch-manipulation sm:max-w-[320px] ${quiet ? "bg-transparent" : "border border-border/40 bg-muted/60"}`}
           title={`Choisir le modèle : ${current.displayName || current.name}`}
           aria-label={`Modèle : ${current.displayName || current.name}`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          <span className="hidden sm:inline min-w-0 truncate text-left">{current.displayName || current.name}</span>
+          <Sparkles className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="min-w-0 max-w-40 truncate text-left">{current.displayName || current.name}</span>
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
@@ -107,9 +108,9 @@ export function ModelSelector({ providerFilter }: { providerFilter?: string }) {
             ) : (
               filteredModels.map((model) => {
                 const isSelected =
-                  model.id === selectedModel ||
-                  selectedModel.endsWith(`/${model.id}`) ||
-                  model.id.endsWith(`/${selectedModel}`);
+                  model.id === effectiveModel ||
+                  effectiveModel.endsWith(`/${model.id}`) ||
+                  model.id.endsWith(`/${effectiveModel}`);
                 const badge = getProviderBadge(model.providerName || model.provider);
 
                 return (
@@ -117,7 +118,7 @@ export function ModelSelector({ providerFilter }: { providerFilter?: string }) {
                     key={model.id}
                     type="button"
                     onPress={() => {
-                      setSelectedModel(model.id);
+                      (onSelect || setSelectedModel)(model.id);
                       setIsOpen(false);
                     }}
                     className={`w-full flex items-center justify-between p-2 rounded-lg text-left cursor-pointer transition-colors ${

@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Loader2,
   ChevronDown,
-  ChevronRight,
   FileText,
   Code2,
   Copy,
@@ -594,26 +593,25 @@ export function ToolCallItem({ item }: { item: ToolCallTimelineItem }) {
   const summaryText = getToolSummary();
 
   return (
-    <div className="my-2 rounded-lg border border-border bg-card/70 text-xs overflow-hidden">
-      {/* Tool Header Row */}
+    <div className="group/tool my-0.5 text-xs">
       <PressButton
         type="button"
         onPress={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-3 sm:px-3 py-2.5 sm:py-2 min-h-[44px] sm:min-h-[38px] text-left hover:bg-accent/50 cursor-pointer select-none transition-colors touch-manipulation"
+        className="w-full flex items-center justify-between gap-3 py-1.5 min-h-[44px] sm:min-h-[32px] text-left text-muted-foreground hover:text-foreground cursor-pointer select-none transition-colors touch-manipulation"
       >
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           {getToolIcon()}
-          <span className="font-semibold text-foreground font-mono shrink-0">{toolName}</span>
+          <span className="font-mono text-[11px] text-foreground/70 shrink-0">{toolName}</span>
           {summaryText ? (
-            <span className="text-muted-foreground truncate font-mono text-[11px] min-w-0 flex-1">
+            <span className="text-muted-foreground/70 truncate font-mono text-[11px] min-w-0 flex-1">
               {summaryText}
             </span>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 ml-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isFileModification && diffStats && (diffStats.additions > 0 || diffStats.deletions > 0) ? (
-            <div className="flex items-center gap-1.5 text-[11px] font-mono font-medium" title="Modifications de fichiers">
+            <div className="flex items-center gap-1.5 text-[10px] font-mono" title="Modifications de fichiers">
               {diffStats.additions > 0 ? (
                 <span className="text-emerald-600 dark:text-emerald-400">+{diffStats.additions}</span>
               ) : null}
@@ -623,18 +621,14 @@ export function ToolCallItem({ item }: { item: ToolCallTimelineItem }) {
             </div>
           ) : null}
           {getStatusIcon()}
-          {isExpanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-          )}
+          <ChevronDown
+            className={`w-3 h-3 text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+          />
         </div>
       </PressButton>
 
-      {/* Expanded Details / Diff / Input / Output */}
       {isExpanded ? (
-        <div className="p-3 border-t border-border bg-background/50 space-y-3 min-w-0 max-w-full overflow-hidden">
-          {/* Diff Viewer for Edits / Patches */}
+        <div className="mt-1 mb-2 ml-[17px] border-l border-border/60 pl-3 space-y-3 min-w-0 max-w-full overflow-hidden">
           {showDiff ? (
             <DiffViewer
               filePath={inputInfo.filePath}
@@ -645,34 +639,28 @@ export function ToolCallItem({ item }: { item: ToolCallTimelineItem }) {
             />
           ) : null}
 
-          {/* Input Details */}
           {showInput ? (
-            <div className="space-y-1.5 min-w-0">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Input
-                </span>
+                <span className="text-[10px] font-medium text-muted-foreground">Entrée</span>
                 <CopyButton text={formattedInput} title="Copier l'entrée" />
               </div>
-              <pre className="p-2.5 rounded-lg bg-muted/40 font-mono text-[11px] text-foreground overflow-x-auto whitespace-pre-wrap select-text max-h-72 break-all min-w-0 max-w-full">
+              <pre className="p-2.5 rounded-lg bg-muted/30 font-mono text-[11px] text-foreground/90 overflow-x-auto whitespace-pre-wrap select-text max-h-72 break-all min-w-0 max-w-full">
                 {formattedInput}
               </pre>
             </div>
           ) : null}
 
-          {/* Output / Result */}
-          <div className="space-y-1.5 min-w-0">
+          <div className="space-y-1 min-w-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Output
-                </span>
+                <span className="text-[10px] font-medium text-muted-foreground">Sortie</span>
                 {outputInfo.exitCode !== undefined && outputInfo.exitCode !== null ? (
                   <span
-                    className={`px-1.5 py-0.2 rounded-xs text-[10px] font-mono font-medium ${
+                    className={`text-[10px] font-mono ${
                       outputInfo.exitCode === 0
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-rose-600 dark:text-rose-400"
                     }`}
                   >
                     exit {outputInfo.exitCode}
@@ -683,31 +671,28 @@ export function ToolCallItem({ item }: { item: ToolCallTimelineItem }) {
             </div>
 
             {item.status === "running" ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono text-[11px]">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <div className="flex items-center gap-2 py-1 text-muted-foreground font-mono text-[11px]">
+                <Loader2 className="w-3 h-3 animate-spin text-amber-500/80" />
                 <span>En cours…</span>
               </div>
             ) : formattedOutput ? (
-              <pre className="p-2.5 rounded-lg bg-muted/40 font-mono text-[11px] text-foreground overflow-x-auto whitespace-pre-wrap select-text max-h-96 overflow-y-auto break-all min-w-0 max-w-full">
+              <pre className="p-2.5 rounded-lg bg-muted/30 font-mono text-[11px] text-foreground/90 overflow-x-auto whitespace-pre-wrap select-text max-h-96 overflow-y-auto break-all min-w-0 max-w-full">
                 {formattedOutput}
               </pre>
             ) : (
-              <div className="p-2.5 rounded-lg bg-muted/20 text-muted-foreground font-mono text-[11px] italic">
+              <div className="py-1 text-muted-foreground/70 font-mono text-[11px] italic">
                 Terminé sans sortie
               </div>
             )}
           </div>
 
-          {/* Error */}
           {Boolean(item.error) ? (
-            <div className="space-y-1.5 min-w-0">
+            <div className="space-y-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
-                  Error
-                </span>
+                <span className="text-[10px] font-medium text-destructive">Erreur</span>
                 <CopyButton text={formatContent(item.error)} title="Copier l'erreur" />
               </div>
-              <pre className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-[11px] font-mono overflow-x-auto whitespace-pre-wrap select-text break-all min-w-0 max-w-full">
+              <pre className="p-2.5 rounded-lg bg-destructive/10 text-destructive text-[11px] font-mono overflow-x-auto whitespace-pre-wrap select-text break-all min-w-0 max-w-full">
                 {formatContent(item.error)}
               </pre>
             </div>

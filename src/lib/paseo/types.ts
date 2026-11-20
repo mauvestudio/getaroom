@@ -551,3 +551,56 @@ export interface WorkspaceScriptRoute {
   url: string;
   displayUrl: string;
 }
+
+// Provider usage / limits (credits, quotas, rate-limit windows)
+export type ProviderUsageTone = "default" | "ok" | "warning" | "danger";
+
+export interface ProviderUsageWindow {
+  id: string;
+  label: string;
+  shortLabel?: string;
+  summary?: boolean;
+  usedPct?: number | null;
+  remainingPct?: number | null;
+  resetsAt?: string | null;
+  runsOutAt?: string | null;
+  shortfallPct?: number | null;
+  tone?: ProviderUsageTone;
+}
+
+export interface ProviderUsageBalance {
+  id: string;
+  label: string;
+  used?: number | null;
+  remaining?: number | null;
+  limit?: number | null;
+  unit: "tokens" | "usd" | "credits" | "requests";
+  resetsAt?: string | null;
+  tone?: ProviderUsageTone;
+}
+
+export interface ProviderUsageDetail {
+  id: string;
+  label: string;
+  value: string;
+  tone?: ProviderUsageTone;
+}
+
+export interface ProviderUsage {
+  providerId: string;
+  displayName: string;
+  status: "available" | "unavailable" | "error";
+  planLabel: string | null;
+  sourceLabel?: string | null;
+  fetchedAt?: string | null;
+  nextRefreshAt?: string | null;
+  windows: ProviderUsageWindow[];
+  balances?: ProviderUsageBalance[];
+  details?: ProviderUsageDetail[];
+  error?: string | null;
+}
+
+export interface ProviderUsageList {
+  fetchedAt: string;
+  providers: ProviderUsage[];
+}

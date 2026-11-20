@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, FileText, History } from "lucide-react";
+import { ArrowLeft, FileText, History, LayoutGrid } from "lucide-react";
 import { usePaseo } from "../../context/PaseoContext";
 import type { AgentSnapshot } from "../../lib/paseo/types";
 import { useRoom } from "../../context/RoomContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useSessionView } from "../../context/SessionViewContext";
+import { useMode } from "../../context/ModeContext";
 import type { PublicAgent } from "../../config/agents";
 import { deriveStatus } from "../../lib/room-status";
 import { cn } from "../../lib/utils";
@@ -19,6 +20,9 @@ import { RoomTerminalView } from "./RoomTerminalView";
 import { roomProviderLabel } from "../../lib/room-provider-label";
 import { HermesStatusBadge } from "../ui/HermesStatusBadge";
 import { SessionGitControls } from "../layout/SessionGitControls";
+import { TheRoomCanvas } from "./TheRoomCanvas";
+import { VisualHistoryButton } from "../chat/VisualHistoryButton";
+import { ErrorBoundary } from "../ui/error-boundary";
 
 function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: string | null }) {
   const { providers, models, setActiveAgentId, setActiveWorkspaceId } = useWorkspace();
@@ -68,13 +72,14 @@ function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: 
 }
 
 export function AgentSpace({ agent }: { agent: PublicAgent }) {
-  const { statusOf, openHome, threadId, setThreadId, sessionsOf, approvalsOf } = useRoom();
+  const { agents, statusOf, openHome, threadId, setThreadId, sessionsOf, approvalsOf } = useRoom();
   const { models, refreshAgents } = useWorkspace();
   const { client, hosts } = usePaseo();
   const [history, setHistory] = useState<AgentSnapshot[] | null>(null);
   const [historyStatus, setHistoryStatus] = useState("");
   const [historyBusy, setHistoryBusy] = useState(false);
   const { viewMode } = useSessionView();
+  const { setMode } = useMode();
   const status = statusOf(agent);
   const [docsOpen, setDocsOpen] = useState(false);
   const [draft, setDraft] = useState(false);
@@ -90,6 +95,7 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   const activeSession = sessions.find((session) => session.id === activeId);
   const providerModels = models.filter((model) => model.agentProvider === agent.paseo.provider);
   const modelLabel = activeSession?.model || agent.paseo.model || providerModels[0]?.id;
+  const activeAgents = agents.filter((candidate) => statusOf(candidate) !== "idle").length;
   useEffect(() => {
     if (!draft || !draftBaselineIds.current) return;
     const created = sessions.find((session) => !draftBaselineIds.current?.has(session.id));
@@ -136,14 +142,22 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
     }
   };
   return <div className="flex min-h-0 flex-1 flex-col">
-    <header className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2.5 sm:gap-3 sm:px-5">
-      <PressButton onPress={openHome} aria-label="Retour à la vue d'ensemble" className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground cursor-pointer touch-manipulation"><ArrowLeft className="h-4 w-4 pointer-events-none" /></PressButton>
-      <span className="flex h-16 w-16 shrink-0 items-end justify-center overflow-hidden rounded-2xl" style={{ backgroundColor: `${agent.accentColor}26` }}><img src={agent.avatarUrl} alt="" className="h-14 w-14 pointer-events-none object-contain" /></span>
-      <div className="min-w-[180px] flex-[1_1_180px]"><h1 className="truncate text-base font-semibold leading-tight text-foreground">{agent.name}</h1><p className="truncate text-xs text-muted-foreground">{agent.role}</p><div className="mt-1 flex flex-wrap items-center gap-1.5"><HermesStatusBadge providerId={agent.paseo.provider} hostId={agent.paseo.hostId} providerLabel={agent.paseo.providerLabel || roomProviderLabel(activeSession?.provider || agent.paseo.provider, models)} compact />{modelLabel && <span className="truncate font-mono text-[10px] text-muted-foreground">{modelLabel}</span>}</div></div>
-      <PressButton onPress={() => void loadHistory()} disabled={historyBusy} aria-expanded={history !== null} aria-label="Historique des fils" className="flex h-10 items-center rounded-lg border border-border px-3"><History className="h-4 w-4" /></PressButton>
-      <SessionViewSwitch /><LiveBadge status={status} accent={agent.accentColor} />
-      <SessionGitControls room session={activeSession} />
-      <PressButton onPress={() => setDocsOpen((v) => !v)} aria-pressed={docsOpen} aria-label="Documents" className={cn("flex h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-medium cursor-pointer touch-manipulation", docsOpen ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}><FileText className="h-4 w-4 pointer-events-none" /><span className="hidden sm:inline">Documents</span></PressButton>
+    <header data-tauri-drag-region className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2 sm:gap-2.5 sm:px-4">
+      <PressButton onPress={openHome} aria-label="Retour à la vue d'ensemble" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground cursor-pointer touch-manipulation"><ArrowLeft className="h-4 w-4 pointer-events-none" /></PressButton>
+      <span className="flex h-9 w-9 shrink-0 items-end justify-center overflow-hidden rounded-lg" style={{ backgroundColor: `${agent.accentColor}1f` }}><img src={agent.avatarUrl} alt="" className="h-8 w-8 pointer-events-none object-contain" /></span>
+      <div className="min-w-[140px] flex-[1_1_140px]"><div className="flex items-baseline gap-2"><h1 className="truncate text-sm font-semibold leading-tight text-foreground">{agent.name}</h1><LiveBadge status={status} accent={agent.accentColor} className="shrink-0" /></div><div className="truncate text-[11px] text-muted-foreground">{agent.role}</div></div>
+      <div className="flex items-center gap-1.5">
+        <HermesStatusBadge providerId={agent.paseo.provider} hostId={agent.paseo.hostId} providerLabel={agent.paseo.providerLabel || roomProviderLabel(activeSession?.provider || agent.paseo.provider, models)} compact />
+        {modelLabel && <span className="hidden truncate font-mono text-[10px] text-muted-foreground md:inline">{modelLabel}</span>}
+      </div>
+      <div className="ml-auto flex items-center gap-1">
+        <SessionGitControls room session={activeSession} />
+        <SessionViewSwitch activeAgents={activeAgents} />
+        <VisualHistoryButton className="h-8 w-8" />
+        <PressButton onPress={() => void loadHistory()} disabled={historyBusy} aria-expanded={history !== null} aria-label="Historique des fils" title="Historique des fils" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"><History className="h-4 w-4" /></PressButton>
+        <PressButton onPress={() => setDocsOpen((v) => !v)} aria-pressed={docsOpen} aria-label="Documents" title="Documents" className={cn("flex h-8 w-8 items-center justify-center rounded-md", docsOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}><FileText className="h-4 w-4 pointer-events-none" /></PressButton>
+        <PressButton onPress={() => setMode("openspace")} aria-label="Ouvrir Open Space" title="Ouvrir Open Space" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"><LayoutGrid className="h-4 w-4 pointer-events-none" /></PressButton>
+      </div>
     </header>
     {history !== null && <section aria-label="Fils archivés" className="max-h-48 shrink-0 overflow-auto border-b border-border p-3">
       {historyStatus && <p role="status" className="text-xs text-muted-foreground">{historyStatus}</p>}
@@ -156,7 +170,17 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
       <ThreadRail layout="rail" items={items} activeId={activeId} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
       <div className="flex min-w-0 flex-1 flex-col">
         <ThreadRail layout="chips" items={items} activeId={activeId} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
-        {viewMode === "terminal" ? <RoomTerminalView agent={agent} threadId={activeId} /> : <PaseoConversation agent={agent} activeId={activeId} />}
+        <div className={cn("min-h-0 flex-1 flex-col", viewMode === "discussion" ? "flex" : "hidden")}>
+          <PaseoConversation agent={agent} activeId={activeId} />
+        </div>
+        <div className={cn("min-h-0 flex-1", viewMode === "terminal" ? "flex" : "hidden")}>
+          <RoomTerminalView agent={agent} threadId={activeId} />
+        </div>
+        <div className={cn("min-h-0 flex-1", viewMode === "the-room" ? "block" : "hidden")}>
+          <ErrorBoundary resetKey={agent.id}>
+            <TheRoomCanvas active={viewMode === "the-room"} />
+          </ErrorBoundary>
+        </div>
       </div>
       {docsOpen && <DocumentsDrawer agent={agent} activeThreadId={activeId} refreshToken={status} onClose={() => setDocsOpen(false)} />}
     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
+import { useI18n } from "../../i18n/I18nContext";
 import { cn } from "../../lib/utils";
 import { modeLabel } from "../../lib/mode-labels";
 import { ModelSelector } from "./ModelSelector";
@@ -39,7 +40,11 @@ import {
   Navigation,
   Zap,
   Clock,
+  Mic,
+  ListTodo,
+  LoaderCircle,
 } from "lucide-react";
+import { ContextUsagePill } from "../layout/ContextUsagePill";
 
 function getModeIcon(modeId: string) {
   switch (modeId.toLowerCase()) {
@@ -58,6 +63,7 @@ function getModeIcon(modeId: string) {
 }
 
 export function PromptComposer({ initialValue = "", modelProvider, newSessionOptions }: { initialValue?: string; modelProvider?: string; newSessionOptions?: { provider: string; model?: string; workspaceId?: string; hostId?: string; preamble?: string; reasoning?: string } }) {
+  const { t } = useI18n();
   const {
     sendMessage,
     isTurnRunning,
@@ -77,6 +83,8 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     activeAgentId,
     queuedFollowups,
     cancelQueuedFollowup,
+    summaryMode,
+    setSummaryMode,
   } = useWorkspace();
 
   const isDebugRunning =
@@ -106,9 +114,39 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
   const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([]);
   const [imageError, setImageError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [draftModel, setDraftModel] = useState(newSessionOptions?.model || "");
+  const [draftReasoning, setDraftReasoning] = useState(newSessionOptions?.reasoning || "medium");
+  const [isListening, setIsListening] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const speechRef = useRef<{ start: () => void; stop: () => void } | null>(null);
+  const speechAvailable = typeof window !== "undefined" && Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  useEffect(() => {
+    setDraftModel(newSessionOptions?.model || "");
+    setDraftReasoning(newSessionOptions?.reasoning || "medium");
+  }, [newSessionOptions?.provider, newSessionOptions?.model, newSessionOptions?.reasoning]);
+
+  useEffect(() => () => speechRef.current?.stop(), []);
+
+  const toggleDictation = () => {
+    if (isListening) { speechRef.current?.stop(); setIsListening(false); return; }
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) return;
+    const recognition = new Recognition();
+    recognition.lang = document.documentElement.lang === "fr" ? "fr-FR" : "en-US";
+    recognition.interimResults = false;
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results as ArrayLike<any>).map((result: any) => result[0]?.transcript || "").join(" ").trim();
+      if (transcript) setPrompt((previous) => `${previous}${previous && !previous.endsWith(" ") ? " " : ""}${transcript}`);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    speechRef.current = recognition;
+    try { recognition.start(); setIsListening(true); }
+    catch { setIsListening(false); }
+  };
 
   useEffect(() => {
     if (initialValue) {
@@ -179,9 +217,16 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
   // Window-level drag and drop so users can drop images anywhere into the chat window
   useEffect(() => {
     let dragCounter = 0;
+    const containsFiles = (transfer: DataTransfer | null) => Boolean(
+      transfer && (
+        Array.from(transfer.types).some((type) => type.toLowerCase() === "files" || type.toLowerCase().startsWith("public.file")) ||
+        Array.from(transfer.items || []).some((item) => item.kind === "file") ||
+        transfer.files.length > 0
+      ),
+    );
 
     const handleWindowDragEnter = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
+      if (containsFiles(e.dataTransfer)) {
         e.preventDefault();
         dragCounter++;
         setIsDraggingOver(true);
@@ -189,7 +234,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     };
 
     const handleWindowDragLeave = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
+      if (containsFiles(e.dataTransfer)) {
         e.preventDefault();
         dragCounter--;
         if (dragCounter <= 0) {
@@ -200,30 +245,34 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     };
 
     const handleWindowDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
+      if (containsFiles(e.dataTransfer)) {
         e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
         setIsDraggingOver(true);
       }
     };
 
     const handleWindowDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) {
+      if (containsFiles(e.dataTransfer)) {
         e.preventDefault();
         dragCounter = 0;
         setIsDraggingOver(false);
 
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          const imageFiles: File[] = [];
-          for (let i = 0; i < e.dataTransfer.files.length; i++) {
-            const file = e.dataTransfer.files[i];
-            if (file && file.type.startsWith("image/")) {
-              imageFiles.push(file);
+        const transfer = e.dataTransfer;
+        if (!transfer) return;
+        const droppedFiles = Array.from(transfer.files);
+        if (droppedFiles.length === 0) {
+          for (const item of Array.from(transfer.items)) {
+            if (item.kind === "file") {
+              const file = item.getAsFile();
+              if (file) droppedFiles.push(file);
             }
           }
-          if (imageFiles.length > 0) {
-            handleAddFiles(imageFiles);
-          }
         }
+        const imageFiles = droppedFiles.filter((file) =>
+          file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|heic|avif)$/i.test(file.name),
+        );
+        if (imageFiles.length > 0) handleAddFiles(imageFiles);
       }
     };
 
@@ -259,7 +308,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     try {
       await sendMessage(textToSend, undefined, imagesToSend, {
         activeTurnBehavior: effectiveIsTurnRunning ? (activeTurnBehavior || "steer") : undefined,
-        newSession: newSessionOptions,
+        newSession: newSessionOptions ? { ...newSessionOptions, model: draftModel || newSessionOptions.model, reasoning: draftReasoning || newSessionOptions.reasoning } : undefined,
       });
     } catch (err) {
       console.error("[PromptComposer] Send failed:", err);
@@ -504,10 +553,19 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     }
   };
 
+  const dictationButton = speechAvailable ? <PressButton
+    type="button"
+    onPress={toggleDictation}
+    aria-pressed={isListening}
+    aria-label={isListening ? t("Arrêter la dictée") : t("Dicter un message")}
+    title={isListening ? t("Arrêter la dictée") : t("Dicter un message")}
+    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-muted/60 ${isListening ? "text-destructive" : "text-muted-foreground"}`}
+  ><Mic className="h-4 w-4" /></PressButton> : null;
+
   return (
     <div
       style={{ paddingBottom: "max(0.5rem, var(--safe-area-bottom, 0px))" }}
-      className="relative max-w-4xl w-full mx-auto p-2 sm:p-4 pt-0 shrink-0 min-w-0"
+      className="relative w-full max-w-[1500px] mx-auto px-3 sm:px-5 pt-0 shrink-0 min-w-0"
     >
       {/* Popups */}
       {slashFilter !== null && (
@@ -539,7 +597,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                 Dépose des images pour les joindre
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                PNG, JPEG, WebP, GIF up to 20MB
+                PNG, JPEG, WebP ou GIF, jusqu’à 20 Mo
               </div>
             </div>
           </div>
@@ -554,11 +612,11 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
             textareaRef.current?.focus();
           }
         }}
-        className={`rounded-2xl border ${
+        className={`max-w-3xl mx-auto rounded-2xl border ${
           isDraggingOver
             ? "border-primary ring-2 ring-primary/20 bg-primary/5"
-            : "border-border bg-card"
-        } shadow-lg p-3 space-y-2 text-card-foreground cursor-text`}
+            : "border-border/70 bg-card"
+        } p-2.5 space-y-1 text-card-foreground cursor-text`}
       >
         {/* Error Notification */}
         {imageError && (
@@ -654,16 +712,16 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
           placeholder={
             effectiveIsTurnRunning
               ? "Écrire à l'agent en cours… (Entrée : réorienter, ⌘↵ : interrompre, ⌥↵ : suite)"
-              : "Demande à Paseo d'écrire du code, de corriger un bug ou de lancer une commande… (/ pour les commandes, @ pour les fichiers)"
+              : t("Écrivez à l’agent, mentionnez des @fichiers ou utilisez les /commandes et /skills")
           }
-          rows={2}
-          className="w-full resize-none bg-transparent border-0 p-1 text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-hidden leading-relaxed max-h-56 touch-manipulation"
+          rows={1}
+          className="w-full min-h-[44px] resize-none bg-transparent border-0 px-2 py-1 text-base sm:text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-hidden leading-relaxed max-h-56 touch-manipulation"
         />
 
         {/* Controls Row */}
-        <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/40 select-none">
+        <div className="flex items-center justify-between gap-1.5 pt-1 select-none">
           {/* Left: Image upload button & Mode/Model/Effort selectors */}
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden sm:gap-1.5 [scrollbar-width:thin]">
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden sm:gap-2 [scrollbar-width:thin]">
             {/* Upload Button: Always available on mobile and desktop */}
             <input
               ref={fileInputRef}
@@ -676,7 +734,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
             <PressButton
               type="button"
               onPress={() => fileInputRef.current?.click()}
-              className="h-8 sm:h-7 flex items-center justify-center gap-1 px-2.5 sm:px-2 rounded-lg text-xs font-medium bg-muted/60 hover:bg-muted text-foreground border border-border/40 cursor-pointer transition-colors shrink-0 shadow-2xs touch-manipulation"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground touch-manipulation"
               title={
                 isVisionCapable
                   ? "Joindre une image (modèle avec vision)"
@@ -684,60 +742,26 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
               }
               aria-label="Joindre une image"
             >
-              <Plus className="w-3.5 h-3.5 text-primary" />
-              <span className="hidden sm:inline text-[11px]">Image</span>
+              <Plus className="w-4 h-4" />
             </PressButton>
 
             {/* Mode, Model & Effort: hidden on mobile during active turn with text so steering controls fit */}
             <div
               className={cn(
-                "items-center gap-1 sm:gap-1.5 min-w-0",
+                "items-center gap-1 sm:gap-1.5 shrink-0",
                 isSteeringActive ? "hidden sm:flex" : "flex",
               )}
             >
-              {/* Mode Pills */}
-              {modes.length > 0 && (
+              {/* Show a mode picker only when the provider can actually change modes. */}
+              {modes.length > 1 && canChangeMode && (
                 <>
-                  <div className="hidden md:flex items-center gap-0.5 bg-muted/60 p-0.5 rounded-lg border border-border/30 shrink-0 h-7">
-                  {modes.map((m) => {
-                    const isActive = m.id === selectedMode;
-                    return (
-                      <PressButton
-                        key={m.id}
-                        type="button"
-                        onPress={() => setSelectedMode(m.id)}
-                        disabled={!canChangeMode || isActive}
-                        className={`h-6 flex items-center gap-1 px-2 rounded-md text-[11px] font-medium transition-colors ${
-                          isActive
-                            ? "bg-background text-foreground shadow-2xs font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        } ${
-                          canChangeMode && !isActive
-                            ? "cursor-pointer"
-                            : "cursor-default opacity-85"
-                        }`}
-                        title={
-                          canChangeMode
-                            ? m.description || `Passer en ${modeLabel(m.name)}`
-                            : modes.length <= 1
-                            ? `Mode : ${modeLabel(m.name)}`
-                            : "Ce fournisseur ne permet pas de changer de mode"
-                        }
-                      >
-                        {getModeIcon(m.id)}
-                        <span>{modeLabel(m.name)}</span>
-                      </PressButton>
-                    );
-                  })}
-                  </div>
-
                   {currentMode && (
                     <Popover open={isModeMenuOpen} onOpenChange={setIsModeMenuOpen}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
                           disabled={!canChangeMode}
-                          className="h-8 sm:h-7 md:hidden flex shrink-0 items-center gap-1 px-2 sm:px-2.5 rounded-lg text-xs font-medium bg-muted/60 hover:bg-muted text-foreground border border-border/40 cursor-pointer transition-colors disabled:cursor-default disabled:opacity-85 touch-manipulation"
+                          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 disabled:cursor-default disabled:opacity-70 touch-manipulation"
                           title={
                             canChangeMode
                               ? `Mode de l'agent : ${modeLabel(currentMode.name)} (toucher pour changer)`
@@ -746,7 +770,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                           aria-label={`Mode de l'agent : ${currentMode.name}`}
                         >
                           {getModeIcon(currentMode.id)}
-                          <span className="hidden sm:inline min-w-0 truncate">{modeLabel(currentMode.name)}</span>
+                          <span className="min-w-0 truncate">{modeLabel(currentMode.name)}</span>
                           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
                         </button>
                       </PopoverTrigger>
@@ -791,23 +815,27 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
               )}
 
               {/* Model & Effort */}
-              {modelProvider && <ModelSelector providerFilter={modelProvider} />}
-              <EffortSelector />
+              <ModelSelector providerFilter={modelProvider} value={newSessionOptions ? draftModel : undefined} onSelect={newSessionOptions ? setDraftModel : undefined} quiet />
+              <EffortSelector value={newSessionOptions ? draftReasoning : undefined} onSelect={newSessionOptions ? setDraftReasoning : undefined} modelId={newSessionOptions ? draftModel : undefined} quiet />
             </div>
+            <PressButton type="button" onPress={() => { setSlashFilter(""); textareaRef.current?.focus(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground" title={t("Commandes et skills")} aria-label={t("Commandes et skills")}><Zap className="h-4 w-4" /></PressButton>
+            <PressButton type="button" onPress={() => setSummaryMode((value) => !value)} aria-pressed={summaryMode} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-muted/60 ${summaryMode ? "text-foreground" : "text-muted-foreground"}`} title={t("Afficher ou masquer le résumé d’activité")} aria-label={t("Afficher ou masquer le résumé d’activité")}><ListTodo className="h-4 w-4" /></PressButton>
           </div>
 
-          {/* Right: Submit / Steer / Interrupt Action */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+          {/* Right: Context gauge, then Submit / Steer / Interrupt Action */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
+            <div className="hidden sm:block h-4 w-px bg-border/60 shrink-0" aria-hidden="true" />
+            <ContextUsagePill />
             {effectiveIsTurnRunning ? (
               hasContent ? (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <ButtonGroup className="rounded-full overflow-hidden border border-border/80 shadow-xs bg-card">
+                  <ButtonGroup className="rounded-lg overflow-hidden border border-border/60 bg-transparent">
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
                       onPress={() => handleSend("steer")}
-                      className="h-8 sm:h-7 rounded-none px-2.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground cursor-pointer gap-1.5 touch-manipulation"
+                      className="h-9 rounded-none px-2.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground cursor-pointer gap-1.5 touch-manipulation"
                       title="Réorienter (Entrée) : injecter le message dans le tour en cours sans l'arrêter"
                       aria-label="Réorienter le tour en cours"
                     >
@@ -820,7 +848,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                       size="sm"
                       variant="ghost"
                       onPress={() => handleSend("interrupt")}
-                      className="h-8 sm:h-7 rounded-none px-2.5 text-xs font-medium bg-muted text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer gap-1.5 transition-colors touch-manipulation"
+                      className="h-9 rounded-none px-2.5 text-xs font-medium bg-transparent text-muted-foreground hover:bg-destructive/15 hover:text-destructive cursor-pointer gap-1.5 transition-colors touch-manipulation"
                       title="Interrompre (⌘↵ / Ctrl+Entrée) : arrêter le tour en cours et en démarrer un nouveau"
                       aria-label="Interrompre et démarrer un nouveau tour"
                     >
@@ -833,7 +861,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                       size="sm"
                       variant="ghost"
                       onPress={() => handleSend("followup")}
-                      className="h-8 sm:h-7 rounded-none px-2.5 text-xs font-medium bg-muted text-muted-foreground hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer gap-1.5 transition-colors touch-manipulation"
+                      className="h-9 rounded-none px-2.5 text-xs font-medium bg-transparent text-muted-foreground hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer gap-1.5 transition-colors touch-manipulation"
                       title="Suite (⌥↵ / Alt+Entrée) : envoyer le message quand l'agent a fini"
                       aria-label="Suite une fois l'agent terminé"
                     >
@@ -842,10 +870,13 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                     </Button>
                   </ButtonGroup>
 
+                  <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+                  {dictationButton}
+
                   <PressButton
                     type="button"
                     onPress={cancelTurn}
-                    className="h-8 w-8 sm:h-7 sm:w-7 rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center cursor-pointer shadow-xs transition-all hover:scale-105 active:scale-95 shrink-0 touch-manipulation"
+                    className="h-9 w-9 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center cursor-pointer shrink-0 touch-manipulation"
                     title="Arrêter la génération sans envoyer"
                     aria-label="Arrêter la génération"
                   >
@@ -853,71 +884,27 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                   </PressButton>
                 </div>
               ) : (
-                <PressButton
-                  type="button"
-                  onPress={cancelTurn}
-                  className="group relative h-8 w-8 sm:h-7 sm:w-7 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center cursor-pointer shadow-xs transition-all hover:scale-105 active:scale-95 shrink-0 touch-manipulation"
-                  title="Arrêter la génération"
-                  aria-label="Arrêter la génération"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {/* Subtle track circle */}
-                    <circle
-                      cx="12"
-                      cy="12"
-                      r="9"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="opacity-25"
-                    />
-                    {/* Rotating spinner arc inspired by lucide-animated loader-circle */}
-                    <g
-                      className="animate-spin"
-                      style={{ transformOrigin: "12px 12px" }}
-                    >
-                      <path
-                        d="M21 12a9 9 0 1 1-6.219-8.56"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                      />
-                    </g>
-                    {/* Centered stop square with rounded corners */}
-                    <rect
-                      x="8.5"
-                      y="8.5"
-                      width="7"
-                      height="7"
-                      rx="1.5"
-                      fill="currentColor"
-                      stroke="none"
-                      className="transition-transform group-hover:scale-110"
-                      style={{ transformOrigin: "12px 12px" }}
-                    />
-                  </svg>
-                </PressButton>
+                <div className="flex items-center gap-2">
+                  <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />
+                  {dictationButton}
+                  <PressButton type="button" onPress={cancelTurn} className="flex h-9 w-9 items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90" title="Arrêter la génération" aria-label="Arrêter la génération"><Square className="h-3.5 w-3.5 fill-current stroke-none" /></PressButton>
+                </div>
               )
             ) : (
-              <PressButton
+              <>{dictationButton}<PressButton
                 type="button"
                 onPress={() => handleSend()}
                 disabled={!hasContent}
-                className={`h-8 w-8 sm:h-7 sm:w-7 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer transition-all shadow-xs shrink-0 touch-manipulation ${
+                className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer transition-colors shrink-0 touch-manipulation ${
                   hasContent
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95"
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
                     : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
                 }`}
                 title="Envoyer le message (Entrée)"
                 aria-label="Envoyer le message"
               >
                 <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
-              </PressButton>
+              </PressButton></>
             )}
           </div>
         </div>

@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { LOCAL_HOST, normalizeSavedHost, type PaseoHost } from "../lib/paseo/hosts";
 import { appDataFile, readJson, writeJson } from "./app-data";
+import { guardRoutes } from "./request-guard";
 
 const hostFile = appDataFile("hosts.json");
 const oldGetaroomHostFile = path.join(homedir(), ".getaroom", "hosts.json");
@@ -89,7 +90,7 @@ export async function saveRemoteHosts(value: unknown): Promise<PaseoHost[]> {
   return normalized;
 }
 
-export const paseoHostsApi = {
+export const paseoHostsApi = guardRoutes({
   "/api/paseo/hosts": {
     async GET() {
       try {
@@ -107,4 +108,4 @@ export const paseoHostsApi = {
       }
     },
   },
-};
+});

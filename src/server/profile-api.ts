@@ -7,6 +7,7 @@ import { getRemoteHosts, saveRemoteHosts } from "./paseo-hosts";
 import type { PaseoHost } from "../lib/paseo/hosts";
 import { getRoomProfiles, saveRoomProfiles } from "./room-api";
 import type { AgentConfig } from "../config/agents";
+import { guardRoutes } from "./request-guard";
 
 const preferencesFile = appDataFile("preferences.json");
 const onboardingFile = appDataFile("onboarding.json");
@@ -102,7 +103,7 @@ async function pathExists(value: string): Promise<boolean> {
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { "cache-control": "no-store" } });
 const failed = (error: unknown) => json({ error: error instanceof Error ? error.message : "Opération impossible." }, 400);
 
-export const profileApi = {
+export const profileApi = guardRoutes({
   "/api/profile/projects": {
     async GET() { return json(await readJson(appDataFile("projects.json"), [])); },
     async POST(req: Request) {
@@ -165,4 +166,4 @@ export const profileApi = {
       } catch (error) { return failed(error); }
     },
   },
-};
+});

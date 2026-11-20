@@ -7,12 +7,14 @@ interface ScrollAreaProps
   viewportRef?: React.Ref<HTMLDivElement>;
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
   viewportClassName?: string;
+  /** Masque la barre de défilement (le défilement molette/trackpad reste actif). */
+  hideScrollbar?: boolean;
 }
 
 const ScrollArea = React.forwardRef<
   React.ElementRef<typeof ScrollAreaPrimitive.Root>,
   ScrollAreaProps
->(({ className, children, viewportRef, onScroll, viewportClassName, type = "auto", ...props }, ref) => (
+>(({ className, children, viewportRef, onScroll, viewportClassName, hideScrollbar = false, type = "auto", ...props }, ref) => (
   <ScrollAreaPrimitive.Root
     ref={ref}
     type={type}
@@ -29,7 +31,7 @@ const ScrollArea = React.forwardRef<
     >
       {children}
     </ScrollAreaPrimitive.Viewport>
-    <ScrollBar />
+    {!hideScrollbar && <ScrollBar />}
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
 ));

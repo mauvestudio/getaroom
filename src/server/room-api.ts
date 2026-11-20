@@ -1,6 +1,7 @@
 import { agents, toPublic, validateAgents, type AgentConfig } from "../config/agents";
 import { appDataFile, readJson, writeJson } from "./app-data";
 import path from "node:path";
+import { guardRoutes } from "./request-guard";
 
 const profileFile = appDataFile("agents.json");
 const legacyFile = path.join(process.cwd(), "src", "config", "agents.json");
@@ -25,7 +26,7 @@ const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 
 /** Routes ROOM sans relais de modèle : les conversations passent par le daemon ACP. */
-export const roomApi = {
+export const roomApi = guardRoutes({
   "/api/room/agents": { GET: async () => json((await getRoomProfiles()).map(toPublic)) },
   "/api/room/profiles": { GET: async () => json({ agents: await getRoomProfiles() }) },
   "/avatars/:file": {
@@ -37,4 +38,4 @@ export const roomApi = {
       });
     },
   },
-};
+});

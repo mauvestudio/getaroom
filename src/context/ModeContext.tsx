@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 
-export type AppMode = "room" | "studio" | "openspace";
+export type AppMode = "room" | "studio" | "openspace" | "the-room";
 const KEY = "get-a-room-mode";
 const LEGACY_KEY = "mauve-mode";
 
@@ -14,7 +14,7 @@ export function ModeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<AppMode>(() => {
     try {
       const stored = localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY);
-      if (stored === "studio" || stored === "openspace") return stored;
+      if (stored === "studio" || stored === "openspace" || stored === "the-room") return stored;
       return "room";
     } catch {
       return "room";

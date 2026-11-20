@@ -65,6 +65,9 @@ export class MultiHostPaseoClient {
         if (key === "resumeAgent") return this.resumeAgent.bind(this);
         if (key === "createAgent") return this.createAgent.bind(this);
         if (key === "setAgentTimelineSubscription") return this.setAgentTimelineSubscription.bind(this);
+        if (key === "onTerminalOutput") return this.onTerminalOutput.bind(this);
+        if (key === "getTerminalBuffer") return this.getTerminalBuffer.bind(this);
+        if (key === "getTerminalSlot") return this.getTerminalSlot.bind(this);
         if (typeof key !== "string") return undefined;
         return (...args: any[]) => this.invoke(key, args);
       },
@@ -123,6 +126,44 @@ export class MultiHostPaseoClient {
     if (states.includes("connected")) return "connected";
     if (states.includes("connecting") || states.includes("reconnecting")) return "connecting";
     return "disconnected";
+  }
+
+  onTerminalOutput(
+    slotOrId: number | string,
+    handler: (data: string) => void,
+    options?: { replayBuffer?: boolean },
+  ): () => void {
+    const split = typeof slotOrId === "string" ? splitRemoteId(slotOrId) : null;
+    const entry = split ? this.entries.get(split.hostId) : this.entries.get("local") || this.entries.values().next().value;
+    if (!entry) return () => {};
+    try {
+      const cancel = entry.client.onTerminalOutput(split ? split.id : slotOrId, handler, options);
+      return typeof cancel === "function" ? cancel : () => {};
+    } catch {
+      return () => {};
+    }
+  }
+
+  getTerminalBuffer(slotOrId: number | string): string {
+    const split = typeof slotOrId === "string" ? splitRemoteId(slotOrId) : null;
+    const entries = split ? [this.entries.get(split.hostId)] : this.getEntries();
+    for (const entry of entries) {
+      if (!entry) continue;
+      const buffer = entry.client.getTerminalBuffer(split ? split.id : slotOrId);
+      if (buffer) return buffer;
+    }
+    return "";
+  }
+
+  getTerminalSlot(terminalId: string): number | undefined {
+    const split = splitRemoteId(terminalId);
+    const entries = split ? [this.entries.get(split.hostId)] : this.getEntries();
+    for (const entry of entries) {
+      if (!entry) continue;
+      const slot = entry.client.getTerminalSlot(split ? split.id : terminalId);
+      if (slot !== undefined) return slot;
+    }
+    return undefined;
   }
 
   async connect(forceFresh = false) {

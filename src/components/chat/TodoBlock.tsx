@@ -110,13 +110,13 @@ export function TodoBlock({ item }: { item: TodoTimelineItem }) {
   if (!item.items || item.items.length === 0) return null;
 
   return (
-    <div className="my-3 p-3.5 rounded-xl border border-border bg-card/60 shadow-2xs text-xs space-y-2">
-      <div className="flex items-center gap-2 text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">
-        <ListTodo className="w-3.5 h-3.5 text-primary" />
+    <div className="my-2 text-xs space-y-2">
+      <div className="flex items-center gap-2 text-muted-foreground text-[11px] font-medium">
+        <ListTodo className="w-3 h-3" />
         <span>Tâches et plan</span>
       </div>
 
-      <TodoItemsList items={item.items} />
+      <TodoItemsList items={item.items} className="space-y-1.5 pl-5" />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { guardRoutes } from "./request-guard";
 export interface RelayLogEntry { at: string; level: "info" | "warning" | "error"; message: string; target?: string; }
 const entries: RelayLogEntry[] = [];
 
@@ -13,8 +14,8 @@ export function recordRelayLog(level: RelayLogEntry["level"], message: string, t
 
 export function getRelayLogs() { return [...entries].reverse(); }
 
-export const relayLogsApi = {
+export const relayLogsApi = guardRoutes({
   "/api/paseo/logs": {
     GET() { return Response.json(getRelayLogs(), { headers: { "cache-control": "no-store" } }); },
   },
-};
+});

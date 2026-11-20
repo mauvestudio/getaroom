@@ -167,6 +167,7 @@ export function TerminalView({ slot, terminalId, isActive = true }: TerminalView
           client.sendBinary(frame);
           client.sendTerminalResize(terminalId, term.cols, term.rows, "claim");
           term.refresh(0, (term.rows || 1) - 1);
+          term.focus();
         }
       } catch {
         // ignore

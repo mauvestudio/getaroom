@@ -11,6 +11,12 @@
 
 Connect multiple Paseo hosts, resume sessions, approve tool requests, and choose from the providers and models each host publishes. A remote host can be reached over your own network, including Tailscale.
 
+## Paseo compatibility and Getaroom extensions
+
+Getaroom preserves Paseo's client, SDK and daemon contracts for sessions, providers, approvals, Git status and diffs, local commits, terminals and provider usage. Workspace operations are sent through Paseo's SDK to the selected workspace and its exact repository path; Getaroom does not replace Paseo's project or session model.
+
+Getaroom adds its own **Room** multi-agent view and unified **Open Space**. The macOS app uses native Tauri window navigation and drag regions, while **The Room**, an isometric view, is planned as a future extension. These features sit above Paseo and leave its native protocol and runtime behavior intact.
+
 ## Requirements
 
 - macOS 12 or later; the current release build targets Apple Silicon.

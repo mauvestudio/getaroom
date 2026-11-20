@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TopRail } from "./TopRail";
-import { BreadcrumbsBar } from "./BreadcrumbsBar";
 import { Sidebar } from "./Sidebar";
 import { SettingsModal } from "./SettingsModal";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { PressButton, PressTarget } from "../ui/button";
 import { useMode } from "../../context/ModeContext";
+import { useGlobalWindowDrag } from "../../lib/useWindowDragRegion";
 import { useRoom } from "../../context/RoomContext";
 import { usePaseo } from "../../context/PaseoContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
@@ -23,6 +23,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, drawer }: AppShellProps) {
+  useGlobalWindowDrag();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
@@ -37,7 +38,7 @@ export function AppShell({ children, drawer }: AppShellProps) {
   const { client } = usePaseo();
   const { mode, setMode } = useMode();
   const notifiedAgentIds = useRef(new Set<string>());
-  const isFullView = mode === "room" || mode === "openspace";
+  const isFullView = mode === "room" || mode === "openspace" || mode === "the-room";
   const searchEntries = useMemo(() => {
     const query = quickSearch.trim().toLocaleLowerCase();
     return [
@@ -111,7 +112,7 @@ export function AppShell({ children, drawer }: AppShellProps) {
             <PressButton onPress={() => setMode("studio")} className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" title="PROJETS" aria-label="Ouvrir PROJETS"><FolderKanban className="h-4 w-4 pointer-events-none" /></PressButton>
             <PressButton onPress={() => setSettingsOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" title="Réglages" aria-label="Ouvrir les réglages"><Settings className="h-4 w-4 pointer-events-none" /></PressButton>
           </aside>
-        ) : <Sidebar isMobile={false} onOpenSettings={() => setSettingsOpen(true)} onToggleCollapse={() => setSidebarCollapsed(true)} />}
+        ) : <Sidebar isMobile={false} onOpenSettings={() => setSettingsOpen(true)} onOpenSearch={() => { setQuickSearch(""); setQuickSearchOpen(true); }} />}
         {!sidebarCollapsed && <div role="separator" aria-orientation="vertical" aria-label="Redimensionner la barre latérale" title="Glisser pour redimensionner · double clic pour réinitialiser" onPointerDown={startSidebarResize} onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT_WIDTH)} className="absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize border-r border-transparent hover:border-foreground/30" />}
       </div>
 
@@ -132,6 +133,7 @@ export function AppShell({ children, drawer }: AppShellProps) {
             <Sidebar
               onCloseMobile={() => setMobileSidebarOpen(false)}
               isMobile={true}
+              onOpenSearch={() => { setQuickSearch(""); setQuickSearchOpen(true); }}
               onOpenSettings={() => {
                 setMobileSidebarOpen(false);
                 setSettingsOpen(true);
@@ -142,7 +144,7 @@ export function AppShell({ children, drawer }: AppShellProps) {
       )}
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative">
+      <div className={`flex-1 flex flex-col h-full min-w-0 overflow-hidden relative${mode === "studio" ? " hide-scrollbars" : ""}`}>
         {/* Breadcrumbs Row (above top rail) */}
         {isFullView ? (
           <header className="md:hidden h-11 px-2 flex items-center border-b border-border shrink-0">
@@ -156,13 +158,11 @@ export function AppShell({ children, drawer }: AppShellProps) {
           </header>
         ) : (
           <>
-            <BreadcrumbsBar onToggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)} />
-
-            {/* Top Header Rail */}
-            <TopRail
-              onOpenSettings={() => setSettingsOpen(true)}
-              onToggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-            />
+            {/* Barre supérieure unique : breadcrumb, session et contrôles (comme Paseo) */}
+            <div className="relative shrink-0">
+              <div data-tauri-drag-region aria-hidden="true" className="h-3 w-full" />
+              <TopRail onToggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)} />
+            </div>
           </>
         )}
 

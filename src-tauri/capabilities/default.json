@@ -1,17 +1,43 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions de la fenêtre Get a Room",
-  "windows": ["main"],
+  "description": "Permissions des fenetres Get a Room (principale et projets)",
+  "windows": [
+    "main",
+    "*"
+  ],
   "permissions": [
     "core:default",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{ "name": "getaroom-relay", "sidecar": true, "args": true }]
+      "allow": [
+        {
+          "name": "getaroom-relay",
+          "sidecar": true,
+          "args": true
+        }
+      ]
     },
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "getaroom-relay", "sidecar": true, "args": true }]
-    }
-  ]
+      "allow": [
+        {
+          "name": "getaroom-relay",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-set-focus",
+    "core:webview:allow-create-webview-window",
+    "notification:default"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*/*",
+      "http://localhost:*/*"
+    ]
+  }
 }

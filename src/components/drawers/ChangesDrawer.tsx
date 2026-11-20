@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n/I18nContext";
 import type { PaseoClient } from "../../lib/paseo/client";
 import { DiffViewer } from "../chat/DiffViewer";
 import {
+  X,
   GitBranch,
   GitCommit,
   RefreshCw,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import type { GitFileChange, GitStatusSummary } from "../../lib/paseo/types";
 import { commitSuggestionPrompt, githubRemoteLabel } from "../../lib/paseo/git-status";
+import { resolveWorkspacePath } from "../../lib/resolve-workspace-path";
 import { PressButton } from "../ui/button";
 
 interface ChangesDrawerProps {
@@ -29,11 +31,14 @@ interface ChangesDrawerProps {
   onRefresh?: () => Promise<void>;
   onCommit?: (message: string) => Promise<void>;
   onSuggestCommitMessage?: () => Promise<void>;
+  /** Colonne étroite : liste et diff empilés verticalement. */
+  compact?: boolean;
+  onClose?: () => void;
 }
 
 type Commit = Awaited<ReturnType<PaseoClient["listCheckoutCommits"]>>["commits"][number];
 
-export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onCommit, onSuggestCommitMessage }: ChangesDrawerProps = {}) {
+export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onCommit, onSuggestCommitMessage, compact = false, onClose }: ChangesDrawerProps = {}) {
   const workspace = useWorkspace();
   const { getClientForHost } = usePaseo();
   const { t } = useI18n();
@@ -64,7 +69,10 @@ export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onComm
   const loadHistory = async () => {
     if (!sourceClient || !gitCwd) return;
     setCommitError(null);
-    try { setCommits((await sourceClient.listCheckoutCommits(gitCwd)).commits); }
+    try {
+      const validCwd = hostId === "local" ? await resolveWorkspacePath(gitCwd) : gitCwd;
+      setCommits((await sourceClient.listCheckoutCommits(validCwd)).commits);
+    }
     catch (error) { setCommitError(error instanceof Error ? error.message : String(error)); }
   };
 
@@ -78,11 +86,12 @@ export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onComm
     if (!window.confirm(action === "discard" ? t("Annuler les modifications de ce fichier ?") : action === "switch" ? t("Changer de branche ?") : t("Confirmer l’action sur le dépôt distant ?"))) return;
     setBusy(true); setCommitError(null);
     try {
-      if (action === "discard" && path) assertSuccess(await sourceClient.checkoutDiscardChanges(gitCwd, [path]));
-      if (action === "switch" && path) assertSuccess(await sourceClient.checkoutSwitchBranch(gitCwd, path));
-      if (action === "pull" || action === "sync") assertSuccess(await sourceClient.checkoutPull(gitCwd));
-      if (action === "push" || action === "sync") assertSuccess(await sourceClient.checkoutPush(gitCwd));
-      if (action === "pr") assertSuccess(await sourceClient.checkoutPrCreate(gitCwd, {}));
+      const validCwd = hostId === "local" ? await resolveWorkspacePath(gitCwd) : gitCwd;
+      if (action === "discard" && path) assertSuccess(await sourceClient.checkoutDiscardChanges(validCwd, [path]));
+      if (action === "switch" && path) assertSuccess(await sourceClient.checkoutSwitchBranch(validCwd, path));
+      if (action === "pull" || action === "sync") assertSuccess(await sourceClient.checkoutPull(validCwd));
+      if (action === "push" || action === "sync") assertSuccess(await sourceClient.checkoutPush(validCwd));
+      if (action === "pr") assertSuccess(await sourceClient.checkoutPrCreate(validCwd, {}));
       await refreshGitStatus();
       setShowBranches(false);
     } catch (error) { setCommitError(error instanceof Error ? error.message : String(error)); }
@@ -137,9 +146,13 @@ export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onComm
   };
 
   return (
-    <div className="flex h-full bg-background select-none text-xs">
+    <div className={`flex h-full bg-background select-none text-xs ${compact ? "flex-col" : ""}`}>
       {/* Left Pane: Files & Commit Box */}
-      <div className="w-72 border-r border-border bg-sidebar/30 flex flex-col h-full shrink-0">
+      <div className={
+        compact
+          ? "flex max-h-[45%] w-full shrink-0 flex-col border-b border-border bg-sidebar/30"
+          : "flex h-full w-72 shrink-0 flex-col border-r border-border bg-sidebar/30"
+      }>
         {/* Status Header */}
         <div className="h-9 px-3 border-b border-border flex items-center justify-between bg-muted/20">
           <PressButton onPress={() => { setShowBranches((value) => !value); if (!showBranches && sourceClient && gitCwd) void sourceClient.getBranchSuggestions({ cwd: gitCwd, limit: 100 }).then(setBranches).catch((error) => setCommitError(String(error))); }} className="flex min-w-0 items-center gap-1.5 text-foreground font-medium truncate hover:text-primary" title={t("Changer de branche")}>
@@ -159,13 +172,25 @@ export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onComm
             )}
           </PressButton>
 
-          <PressButton
-            onPress={() => refreshGitStatus()}
-            className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-            title="Actualiser l'état git"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </PressButton>
+          <div className="flex items-center gap-0.5">
+            <PressButton
+              onPress={() => refreshGitStatus()}
+              className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+              title="Actualiser l'état git"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </PressButton>
+            {onClose && (
+              <PressButton
+                onPress={onClose}
+                className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                title="Fermer le panneau des modifications"
+                aria-label="Fermer le panneau des modifications"
+              >
+                <X className="w-3.5 h-3.5" />
+              </PressButton>
+            )}
+          </div>
         </div>
 
         {showBranches && <div className="max-h-40 overflow-y-auto border-b border-border p-1">
@@ -285,7 +310,7 @@ export function ChangesDrawer({ status, cwd, hostId = "local", onRefresh, onComm
       </div>
 
       {/* Right Pane: Diff View */}
-      <div className="flex-1 overflow-y-auto p-3 bg-background">
+      <div className={`overflow-y-auto bg-background ${compact ? "min-h-0 flex-1 border-t border-border p-3" : "flex-1 p-3"}`}>
         {(view === "changes" ? currentFile : commitFile) ? (
           <DiffViewer
             filePath={(view === "changes" ? currentFile : commitFile)!.path}

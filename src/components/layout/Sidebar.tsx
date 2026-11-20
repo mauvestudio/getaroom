@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { GetaroomMark } from "../ui/GetaroomMark";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { usePaseo } from "../../context/PaseoContext";
@@ -31,8 +31,16 @@ import {
   Clock,
   GripVertical,
   Settings,
-  LayoutGrid,
-  PanelLeftClose,
+  MoreVertical,
+  SquareArrowOutUpRight,
+  FolderOpen,
+  Trash2,
+  RefreshCw,
+  FolderPlus,
+  LifeBuoy,
+  BookOpen,
+  Bug,
+  Keyboard,
 } from "lucide-react";
 import {
   getProjectKey,
@@ -58,21 +66,26 @@ import { Label } from "../ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { RegisterProjectModal } from "./RegisterProjectModal";
 import { useMode } from "../../context/ModeContext";
-import { ModeSwitch } from "../room/ModeSwitch";
+import { openProjectWindow } from "../../lib/useWindowDragRegion";
 import { RoomAgentList } from "../room/RoomAgentList";
+import { ModeSwitch } from "../room/ModeSwitch";
 import {
   GROUP_LABEL,
     projectGroup,
   sortByGroup,
   type GroupFilter,
 } from "../../lib/project-groups";
+import { checkForUpdate, readStoredUpdateCheck, storeUpdateCheck, formatCheckTime, type UpdateCheckResult } from "../../lib/updater";
+import pkg from "../../../package.json" with { type: "json" };
+import { ProviderUsageGauge } from "./ProviderUsageGauge";
 
 interface SidebarProps {
   onCloseMobile?: () => void;
   isMobile?: boolean;
   /** Réglages : affichés dans l'en-tête en mode Ma Room (Studio Dev a sa propre barre). */
   onOpenSettings?: () => void;
-  onToggleCollapse?: () => void;
+  /** Ouvre la recherche rapide (⌘K). */
+  onOpenSearch?: () => void;
 }
 
 function formatElapsed(timestamp?: string | number): string {
@@ -587,7 +600,380 @@ export function CreateWorktreeModal({
   );
 }
 
-export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleCollapse }: SidebarProps) {
+const PROJECT_MENU_ITEM =
+  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-foreground transition-colors hover:bg-accent cursor-pointer touch-manipulation min-h-8";
+
+function ProjectActionsMenu({ project }: { project: ProjectItem }) {
+  const { client } = usePaseo();
+  const { refreshWorkspaces } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) setConfirmRemove(false);
+  }, [open]);
+
+  const revealInFinder = async () => {
+    try {
+      const response = await fetch("/api/reveal", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: project.rootPath }),
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || "Impossible d'ouvrir le dossier.");
+    } catch (error) {
+      console.error("reveal:", error);
+    }
+  };
+
+  const removeProject = async () => {
+    if (!confirmRemove) {
+      setConfirmRemove(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await client.removeProject(project.id);
+      await refreshWorkspaces();
+      setOpen(false);
+    } catch (error) {
+      console.error("removeProject:", error);
+    } finally {
+      setBusy(false);
+      setConfirmRemove(false);
+    }
+  };
+
+  return (
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <PressButton
+            type="button"
+            draggable={false}
+            onDragStart={(e) => e.stopPropagation()}
+            className="p-1 sm:p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer touch-manipulation"
+            title={`Options du projet ${project.name}`}
+            aria-label={`Options du projet ${project.name}`}
+            aria-expanded={open}
+          >
+            <MoreVertical className="w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none" />
+          </PressButton>
+        </PopoverTrigger>
+        <PopoverContent align="end" sideOffset={4} className="w-60 p-1.5">
+          <div className="space-y-0.5">
+            <PressButton
+              type="button"
+              draggable={false}
+              onDragStart={(e) => e.stopPropagation()}
+              onPress={() => {
+                setOpen(false);
+                setSettingsOpen(true);
+              }}
+              className={PROJECT_MENU_ITEM}
+            >
+              <Settings className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <span className="truncate">Ouvrir les paramètres du projet</span>
+            </PressButton>
+            <PressButton
+              type="button"
+              draggable={false}
+              onDragStart={(e) => e.stopPropagation()}
+              onPress={() => {
+                setOpen(false);
+                openProjectWindow(project.id, project.name);
+              }}
+              className={PROJECT_MENU_ITEM}
+            >
+              <SquareArrowOutUpRight className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <span className="truncate">Ouvrir dans une nouvelle fenêtre</span>
+            </PressButton>
+            <PressButton
+              type="button"
+              draggable={false}
+              onDragStart={(e) => e.stopPropagation()}
+              onPress={() => {
+                setOpen(false);
+                void revealInFinder();
+              }}
+              className={PROJECT_MENU_ITEM}
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <span className="truncate">Ouvrir dans le gestionnaire de fichiers</span>
+            </PressButton>
+            <PressButton
+              type="button"
+              disabled={busy}
+              draggable={false}
+              onDragStart={(e) => e.stopPropagation()}
+              onPress={() => void removeProject()}
+              className={cn(
+                PROJECT_MENU_ITEM,
+                "text-muted-foreground",
+                confirmRemove
+                  ? "bg-destructive/10 text-destructive"
+                  : "hover:text-destructive",
+              )}
+            >
+              <Trash2 className={cn("w-3.5 h-3.5 pointer-events-none", confirmRemove ? "text-destructive" : "text-muted-foreground")} />
+              <span className="truncate">{confirmRemove ? "Confirmer le retrait" : "Retirer le projet"}</span>
+            </PressButton>
+          </div>
+        </PopoverContent>
+      </Popover>
+      <ProjectSettingsModal project={project} open={settingsOpen} onOpenChange={setSettingsOpen} />
+    </>
+  );
+}
+
+function ProjectSettingsModal({
+  project,
+  open,
+  onOpenChange,
+}: {
+  project: ProjectItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { client } = usePaseo();
+  const { refreshWorkspaces } = useWorkspace();
+  const [name, setName] = useState(project.name);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(project.name);
+      setNotice("");
+    }
+  }, [open, project.id, project.name]);
+
+  const uploadIcon = async (file?: File) => {
+    if (!file) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (const byte of bytes) binary += String.fromCharCode(byte);
+      await client.setProjectIcon(project.id, { type: "upload", data: btoa(binary) });
+      await refreshWorkspaces();
+      setNotice("Icône mise à jour.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de charger l'icône.");
+    } finally {
+      setBusy(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
+
+  const resetIcon = async () => {
+    setBusy(true);
+    setNotice("");
+    try {
+      await client.setProjectIcon(project.id, { type: "automatic" });
+      await refreshWorkspaces();
+      setNotice("Icône réinitialisée.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible de réinitialiser l'icône.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    setBusy(true);
+    setNotice("");
+    try {
+      if (trimmed && trimmed !== project.name) {
+        await client.renameProject(project.id, trimmed);
+        await refreshWorkspaces();
+      }
+      onOpenChange(false);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Impossible d'enregistrer.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Paramètres du projet</DialogTitle>
+          <DialogDescription className="truncate font-mono text-[11px]" title={project.rootPath}>
+            {project.rootPath}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="project-name" className="text-xs">Nom du projet</Label>
+            <Input
+              id="project-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={project.name}
+              className="h-9 w-full max-w-full box-border text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/40">
+              <ProjectIcon key={`${project.id}-${notice}`} project={project} client={client} className="h-6 w-6" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PressButton
+                onPress={() => fileInput.current?.click()}
+                disabled={busy}
+                className="min-h-8 rounded-lg border border-border px-2.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer touch-manipulation disabled:opacity-50"
+              >
+                Changer l'icône
+              </PressButton>
+              <PressButton
+                onPress={() => void resetIcon()}
+                disabled={busy}
+                className="min-h-8 rounded-lg border border-border px-2.5 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer touch-manipulation disabled:opacity-50"
+              >
+                Icône automatique
+              </PressButton>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon"
+                className="sr-only"
+                onChange={(event) => void uploadIcon(event.target.files?.[0])}
+              />
+            </div>
+          </div>
+          {notice && <p role="status" className="text-[11px] text-muted-foreground">{notice}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onPress={() => onOpenChange(false)} className="text-xs">Annuler</Button>
+          <Button variant="outline" disabled={busy || !name.trim()} onPress={() => void save()} className="text-xs cursor-pointer">
+            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+            Enregistrer
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const SIDEBAR_FOOTER_ICON =
+  "flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer touch-manipulation";
+
+function HelpMenuPopover() {
+  const [open, setOpen] = useState(false);
+
+  const openLink = (url: string) => {
+    setOpen(false);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const shortcut = (label: string, keys: string) => (
+    <div className="flex items-center justify-between px-2.5 py-1 text-[11px] text-muted-foreground">
+      <span>{label}</span>
+      <kbd className="font-mono text-[10px] text-foreground">{keys}</kbd>
+    </div>
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <PressButton
+          type="button"
+          className={SIDEBAR_FOOTER_ICON}
+          title="Aide & assistance"
+          aria-label="Aide & assistance"
+          aria-expanded={open}
+        >
+          <LifeBuoy className="h-4 w-4 pointer-events-none" />
+        </PressButton>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" sideOffset={6} className="w-64 p-1.5">
+        <div className="space-y-0.5">
+          <PressButton
+            type="button"
+            onPress={() => openLink("https://github.com/mauvestudio/getaroom")}
+            className={PROJECT_MENU_ITEM}
+          >
+            <BookOpen className="h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <span className="truncate">Documentation getaroom</span>
+          </PressButton>
+          <PressButton
+            type="button"
+            onPress={() => openLink("https://github.com/mauvestudio/getaroom/issues")}
+            className={PROJECT_MENU_ITEM}
+          >
+            <Bug className="h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <span className="truncate">Signaler un problème</span>
+          </PressButton>
+        </div>
+        <div className="mt-1.5 border-t border-border/50 pt-1">
+          <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <Keyboard className="h-3 w-3" />
+            Raccourcis
+          </div>
+          {shortcut("Nouvelle session", "⌘N")}
+          {shortcut("Recherche rapide", "⌘K")}
+          {shortcut("Réglages", "⌘,")}
+          {shortcut("Barre latérale", "⌘" + "\\")}
+          {shortcut("Discussion / Terminal", "⌘`")}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function UpdateCheckButton() {
+  const [result, setResult] = useState<UpdateCheckResult | null>(() => readStoredUpdateCheck());
+  const [checking, setChecking] = useState(false);
+
+  const run = async () => {
+    if (result?.available && result.url) {
+      window.open(result.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setChecking(true);
+    const next = await checkForUpdate(pkg.version);
+    storeUpdateCheck(next);
+    setResult(next);
+    setChecking(false);
+  };
+
+  const title = result?.available
+    ? `Mise à jour v${result.latest} disponible (vérifié ${formatCheckTime(result.checkedAt)}) — cliquer pour ouvrir la release`
+    : result && !result.error
+      ? `À jour (v${pkg.version}) — revérifier les releases GitHub`
+      : result?.error
+        ? `Dernière vérification : ${result.error} — réessayer`
+        : "Vérifier les mises à jour sur GitHub";
+
+  return (
+    <PressButton
+      type="button"
+      onPress={() => void run()}
+      className={cn(SIDEBAR_FOOTER_ICON, "relative")}
+      title={title}
+      aria-label="Mise à jour"
+    >
+      {checking ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <RefreshCw className="h-3.5 w-3.5 pointer-events-none" />
+      )}
+      {result?.available && !checking && (
+        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-foreground" aria-hidden="true" />
+      )}
+    </PressButton>
+  );
+}
+
+export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch }: SidebarProps) {
   const { client } = usePaseo();
   const {
     projects,
@@ -857,6 +1243,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
   }, [activeAgentId, projectTree]);
 
   const handleSelectSession = (sessionId: string, workspaceId?: string) => {
+    setMode("studio");
     setActiveAgentId(sessionId);
     if (workspaceId) {
       setActiveWorkspaceId(workspaceId);
@@ -867,6 +1254,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
   };
 
   const handleSelectProject = (project: ProjectItem, directWorkspace?: WorkspaceItem) => {
+    setMode("studio");
     const wsId = directWorkspace?.id || project.id;
     setActiveWorkspaceId(wsId);
 
@@ -888,6 +1276,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
   };
 
   const handleNewSession = async (workspaceId?: string) => {
+    setMode("studio");
     await createSession(undefined, workspaceId);
     if (onCloseMobile) {
       onCloseMobile();
@@ -897,47 +1286,18 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
   return (
     <aside
       className={cn(
-        "w-full min-w-0 border-r flex flex-col h-full shrink-0 select-none",
-        mode === "room"
-          ? "border-sidebar-room-edge/50 bg-sidebar"
-          : mode === "studio"
-            ? "border-sidebar-studio-edge/50 bg-sidebar"
-            : "border-border bg-sidebar",
+        "w-full min-w-0 border-r border-border/60 bg-sidebar flex flex-col h-full shrink-0 select-none",
       )}
     >
       {/* Fixed top header with '+' button and hairline separator */}
       {!isMobile && <div data-tauri-drag-region className="h-[34px] shrink-0 border-b border-border/30" aria-hidden="true" />}
-      <div className="flex h-11 min-w-0 shrink-0 items-center justify-between gap-1 border-b border-border/40 pl-3 pr-2">
+      <div data-tauri-drag-region className="flex h-11 min-w-0 shrink-0 items-center justify-between gap-1 border-b border-border/40 pl-3 pr-2">
         <PressButton
           onPress={() => { setMode("openspace"); onCloseMobile?.(); }}
           aria-label="Retour à Open Space"
           className="flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 font-brand text-[22px] leading-none tracking-tight text-foreground cursor-pointer touch-manipulation"
-        ><GetaroomMark className="h-6 w-6" /><span className="truncate">getaroom</span></PressButton>
+        ><GetaroomMark className="h-9 w-9" /><span className="truncate">getaroom</span><span className="hidden shrink-0 font-mono text-[10px] leading-none text-muted-foreground/70 lg:inline">v{pkg.version}</span></PressButton>
         <div className="flex shrink-0 items-center gap-0.5">
-          <PressButton
-            type="button"
-            onPress={() => setIsRegisterProjectOpen(true)}
-            className={cn(
-              "h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 cursor-pointer transition-colors touch-manipulation",
-              mode !== "studio" && "hidden",
-            )}
-            title="Ajouter un projet"
-            aria-label="Ajouter un projet"
-          >
-            <Plus className="w-4 h-4" />
-          </PressButton>
-          {onOpenSettings && (
-            <PressButton
-              type="button"
-              onPress={onOpenSettings}
-              className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 cursor-pointer transition-colors touch-manipulation"
-              title="Ouvrir les réglages"
-              aria-label="Ouvrir les réglages"
-            >
-              <Settings className="w-4 h-4" />
-            </PressButton>
-          )}
-          {!isMobile && onToggleCollapse && <PressButton type="button" onPress={onToggleCollapse} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" title="Replier la barre latérale (⌘\\)" aria-label="Replier la barre latérale"><PanelLeftClose className="h-4 w-4 pointer-events-none" /></PressButton>}
           {isMobile && onCloseMobile && (
             <PressButton
               type="button"
@@ -952,7 +1312,56 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
         </div>
       </div>
 
-      {mode !== "studio" && <RoomAgentList onSelect={() => onCloseMobile?.()} />}
+      {/* Navigation compacte : Open Space, Dev et Room */}
+      <div data-tauri-drag-region className="shrink-0 border-b border-border/40 px-3 py-2">
+        <ModeSwitch onNavigate={onCloseMobile} />
+        {onOpenSearch && (
+          <PressButton
+            type="button"
+            onPress={() => { onCloseMobile?.(); onOpenSearch(); }}
+            aria-label="Recherche"
+            title="Recherche (⌘K)"
+            className="mt-2 flex h-8 w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+          >
+            <Search className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
+            <span className="min-w-0 flex-1 truncate">Recherche</span>
+            <kbd className="shrink-0 font-mono text-[10px] text-muted-foreground/70">⌘K</kbd>
+          </PressButton>
+        )}
+      </div>
+
+      {mode === "openspace" && (
+        <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <Clock className="h-3 w-3" /> Activité récente
+            </div>
+            {recentSessions.length > 0 ? recentSessions.map((session) => (
+              <PressTarget
+                key={session.id}
+                onPress={() => handleSelectSession(session.id, session.workspaceId)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition-colors",
+                  activeAgentId === session.id ? "bg-muted/70 text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                )}
+              >
+                {session.status === "running" ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-500" /> : <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" />}
+                <span className="min-w-0 flex-1 truncate">{session.title || "Session sans titre"}</span>
+                <span className="shrink-0 font-mono text-[9px] text-muted-foreground/70">{formatElapsed(session.updatedAt || session.createdAt)}</span>
+              </PressTarget>
+            )) : <p className="px-2 py-2 text-[11px] text-muted-foreground">Les sessions récentes apparaîtront ici.</p>}
+          </div>
+        </ScrollArea>
+      )}
+
+      {(mode === "room" || mode === "the-room") && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Agents Room</div>
+          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+            <RoomAgentList embedded onSelect={() => onCloseMobile?.()} />
+          </div>
+        </div>
+      )}
 
       {/* Filtre d'univers (Studio Dev) */}
       {mode === "studio" && (
@@ -965,7 +1374,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
               onPress={() => setGroupFilter(g)}
               className={cn(
                 "px-2.5 min-h-8 rounded-full text-[11px] font-medium cursor-pointer transition-colors touch-manipulation",
-                groupFilter === g ? "bg-sidebar-studio-active text-foreground ring-1 ring-sidebar-studio-edge/50" : "bg-muted text-muted-foreground",
+                groupFilter === g ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {g === "all" ? "Tous" : GROUP_LABEL[g]}
@@ -976,27 +1385,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
 
       {/* Tree list with Shadcn ScrollArea */}
       {mode === "studio" && (
-      <ScrollArea className="flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
-        {/* Accès Open Space en tête */}
-        <div className="mb-3 px-0.5">
-          <PressTarget
-            onPress={() => {
-              setMode("openspace");
-              onCloseMobile?.();
-            }}
-            className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 border border-border/60 bg-card/60 hover:bg-accent/60 text-foreground cursor-pointer touch-manipulation transition-colors"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <LayoutGrid className="h-4 w-4 pointer-events-none" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-bold tracking-tight">Open Space</span>
-              <span className="block text-[10px] lowercase text-muted-foreground">
-                tour de contrôle
-              </span>
-            </div>
-          </PressTarget>
-        </div>
+      <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
         {/* Recent Sessions */}
         {recentSessions.length > 0 && (
           <div className="mb-3 space-y-1">
@@ -1019,8 +1408,8 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                       className={cn(
                         "group flex flex-col gap-0.5 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-all",
                         isActive
-                          ? "bg-sidebar-studio-active border border-sidebar-studio-edge/60 text-foreground shadow-xs font-medium"
-                          : "text-muted-foreground hover:text-foreground hover:bg-sidebar-studio-active/50",
+                          ? "bg-muted/70 text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                       )}
                     >
                       <div className="flex items-center justify-between gap-1.5 min-w-0">
@@ -1115,7 +1504,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                   draggable
                   onDragStart={(e) => handleDragStart(e, projectKey)}
                   onDragEnd={handleDragEnd}
-                  className={cn("group flex items-center justify-between rounded-lg border-l-[3px] px-1.5 py-1 text-foreground transition-colors", isProjectSelected ? "border-sidebar-studio-edge ring-1 ring-inset ring-sidebar-studio-edge/60 font-semibold" : "border-transparent hover:bg-sidebar-studio-active/50")}
+                  className={cn("group flex items-center justify-between rounded-md px-1.5 py-1 text-foreground transition-colors", isProjectSelected ? "bg-muted/60 font-semibold" : "hover:bg-muted/40")}
                 >
                   <div className="flex items-center gap-1 min-w-0 flex-1">
                     <div
@@ -1153,7 +1542,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                       className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer truncate touch-manipulation"
                     >
                       <ProjectIcon project={project} client={client} />
-                      <span className="font-semibold text-xs tracking-tight lowercase truncate">
+                      <span className="font-semibold text-[13px] tracking-tight lowercase truncate">
                         {project.name}
                       </span>
                     </PressTarget>
@@ -1190,6 +1579,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                     >
                       <Plus className="w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none" />
                     </PressButton>
+                    <ProjectActionsMenu project={project} />
                   </div>
                 </div>
 
@@ -1212,8 +1602,8 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                             }
                             className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer transition-all ${
                               isActive
-                                ? "bg-sidebar-studio-active border border-sidebar-studio-edge/60 text-foreground shadow-xs font-medium"
-                                : "text-muted-foreground hover:text-foreground hover:bg-sidebar-studio-active/50"
+                                ? "bg-muted/70 text-foreground"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                             }`}
                           >
                             <div className="flex items-center gap-1.5 min-w-0 truncate">
@@ -1404,8 +1794,8 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
                                       }
                                       className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer transition-all touch-manipulation ${
                                         isActive
-                                          ? "bg-sidebar-studio-active border border-sidebar-studio-edge/60 text-foreground shadow-xs font-medium"
-                                          : "text-muted-foreground hover:text-foreground hover:bg-sidebar-studio-active/50"
+                                          ? "bg-muted/70 text-foreground"
+                                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0 truncate">
@@ -1519,9 +1909,36 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onToggleColla
       </ScrollArea>
       )}
 
-      {/* Sélecteur de mode */}
-      <div className="p-2 border-t border-border/40 shrink-0">
-        <ModeSwitch />
+      <div className="shrink-0 border-t border-border/40 px-3 py-2">
+        <ProviderUsageGauge />
+      </div>
+
+      {/* Pied de sidebar : dossier, mise à jour, aide, réglages (comme Paseo) */}
+      <div className="flex h-12 shrink-0 items-center gap-0.5 border-t border-border/40 px-2">
+        <PressButton
+          type="button"
+          onPress={() => setIsRegisterProjectOpen(true)}
+          className={SIDEBAR_FOOTER_ICON}
+          title="Ajouter un dossier"
+          aria-label="Ajouter un dossier"
+        >
+          <FolderPlus className="h-4 w-4 pointer-events-none" />
+        </PressButton>
+        <UpdateCheckButton />
+        <HelpMenuPopover />
+        <div className="ml-auto flex items-center gap-0.5">
+          {onOpenSettings && (
+            <PressButton
+              type="button"
+              onPress={onOpenSettings}
+              className={SIDEBAR_FOOTER_ICON}
+              title="Ouvrir les réglages"
+              aria-label="Ouvrir les réglages"
+            >
+              <Settings className="h-4 w-4 pointer-events-none" />
+            </PressButton>
+          )}
+        </div>
       </div>
 
       {/* Create Worktree Modal */}

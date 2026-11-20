@@ -4,13 +4,15 @@ import { Popover, PopoverTrigger, PopoverContent } from "../ui/popover";
 import { Brain, ChevronDown, Check } from "lucide-react";
 import { PressButton } from "../ui/button";
 
-export function EffortSelector() {
+export function EffortSelector({ value, onSelect, modelId, quiet = false }: { value?: string; onSelect?: (effort: string) => void; modelId?: string; quiet?: boolean } = {}) {
   const { models, selectedModel, thinkingEffort, setThinkingEffort } = useWorkspace();
+  const effectiveModel = modelId || selectedModel;
+  const effectiveEffort = value || thinkingEffort;
   const [isOpen, setIsOpen] = useState(false);
 
   const activeModel =
-    models.find((m) => m.id === selectedModel) ||
-    models.find((m) => m.id.endsWith(`/${selectedModel}`));
+    models.find((m) => m.id === effectiveModel) ||
+    models.find((m) => m.id.endsWith(`/${effectiveModel}`));
 
   const options =
     activeModel?.thinkingOptions && activeModel.thinkingOptions.length > 0
@@ -23,19 +25,19 @@ export function EffortSelector() {
           { id: "max", label: "Max" },
         ];
 
-  const currentOption = options.find((o) => o.id === thinkingEffort) || options[0]!;
+  const currentOption = options.find((o) => o.id === effectiveEffort) || options[0]!;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="h-8 sm:h-7 flex shrink-0 items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 rounded-lg text-xs font-medium bg-muted/60 hover:bg-muted text-foreground border border-border/40 cursor-pointer transition-colors touch-manipulation"
+          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted/60 touch-manipulation ${quiet ? "bg-transparent" : "border border-border/40 bg-muted/60"}`}
           title={`Effort de raisonnement : ${currentOption.label}`}
           aria-label={`Effort de raisonnement : ${currentOption.label}`}
         >
-          <Brain className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span className="hidden sm:inline min-w-0 truncate capitalize">{currentOption.label}</span>
+          <Brain className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="min-w-0 truncate capitalize">{currentOption.label}</span>
           <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
@@ -51,13 +53,13 @@ export function EffortSelector() {
         </div>
         <div className="space-y-0.5">
           {options.map((opt) => {
-            const isSelected = opt.id === thinkingEffort;
+            const isSelected = opt.id === effectiveEffort;
             return (
               <PressButton
                 key={opt.id}
                 type="button"
                 onPress={() => {
-                  setThinkingEffort(opt.id);
+                  (onSelect || setThinkingEffort)(opt.id);
                   setIsOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer text-left transition-colors ${

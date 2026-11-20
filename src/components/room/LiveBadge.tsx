@@ -27,12 +27,10 @@ export function StatusDot({ status, accent, className }: { status: LiveStatus; a
 
 export function LiveBadge({ status, accent, className }: { status: LiveStatus; accent?: string; className?: string }) {
   const t = TONE[status];
-  const washed = status === "working" && accent ? ({ backgroundColor: `${accent}1f` } as CSSProperties) : undefined;
   return (
     <span
       role="status"
-      style={washed}
-      className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", t.wash, t.text, className)}
+      className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium", t.text, className)}
     >
       <StatusDot status={status} accent={accent} />
       {STATUS_LABEL[status]}

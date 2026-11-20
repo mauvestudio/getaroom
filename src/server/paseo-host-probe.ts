@@ -2,11 +2,12 @@ import { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { WebSocketLike } from "@getpaseo/client/internal/daemon-client-transport-types";
 import { openPaseoWebSocket } from "./paseo-websocket";
 import { normalizeHostWsUrl } from "../lib/paseo/hosts";
+import { guardRoutes } from "./request-guard";
 
 const loopbackNames = new Set(["127.0.0.1", "localhost", "[::1]"]);
 let running = false;
 
-export const paseoHostProbeApi = {
+export const paseoHostProbeApi = guardRoutes({
   "/api/paseo/hosts/test": {
     async POST(request: Request, server: Bun.Server<unknown>) {
       const address = server.requestIP(request)?.address;
@@ -83,4 +84,4 @@ export const paseoHostProbeApi = {
       }
     },
   },
-};
+});

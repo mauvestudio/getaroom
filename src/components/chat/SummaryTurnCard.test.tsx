@@ -134,7 +134,7 @@ describe("SummaryTurnCard with tasks", () => {
     // Verify tool calls appear
     expect(html).toContain("read:");
     expect(html).toContain("bash:");
-    expect(html).toContain("2 calls");
+    expect(html).toContain("2 appels");
 
     // Verify tasks section appears before the tool calls in the DOM markup
     const tasksIndex = html.indexOf("Implement new task summary layout");
@@ -169,6 +169,6 @@ describe("SummaryTurnCard with tasks", () => {
 
     expect(html).not.toContain("Tâches et plan");
     expect(html).toContain("read:");
-    expect(html).toContain("1 call");
+    expect(html).toContain("1 appel");
   });
 });

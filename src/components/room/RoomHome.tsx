@@ -11,7 +11,7 @@ import { LiveBadge } from "./LiveBadge";
 import { StatsModal } from "../openspace/StatsModal";
 import { HermesStatusBadge } from "../ui/HermesStatusBadge";
 
-const CARD = "rounded-[22px] border border-border bg-card";
+const CARD = "rounded-[22px] border border-border/70 bg-card";
 
 function useLastThread(agent: PublicAgent) {
   const { sessionsOf } = useRoom();
@@ -41,21 +41,18 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
       onPress={() => openAgent(agent.id)}
       className={cn(
         CARD,
-        "group flex h-[370px] flex-col justify-between overflow-hidden p-5 cursor-pointer transition-all duration-200 touch-manipulation hover:border-foreground/30 hover:shadow-md",
+        "group flex h-[300px] flex-col justify-between overflow-hidden p-4 cursor-pointer transition-colors duration-150 touch-manipulation hover:border-foreground/25",
         isApproval
-          ? "border-amber-500/50 shadow-sm bg-amber-500/5"
-          : isWorking
-            ? "border-border shadow-sm"
-            : "border-border",
+          ? "border-amber-500/40 bg-amber-500/5"
+          : "border-border/70",
       )}
       style={{
-        borderColor: isWorking ? `${agent.accentColor}66` : undefined,
-        boxShadow: isWorking ? `0 0 28px ${agent.accentColor}18` : undefined,
+        borderColor: isWorking ? `${agent.accentColor}55` : undefined,
       }}
     >
       {/* Haut : Statut en direct + Avatar & Nom */}
       <div>
-        <div className="mb-3 space-y-2">
+        <div className="mb-2.5 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <LiveBadge status={st} accent={agent.accentColor} className="whitespace-nowrap" />
             <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{last.count} {last.count > 1 ? "fils" : "fil"}</span>
@@ -63,15 +60,15 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
           <HermesStatusBadge providerId={agent.paseo.provider} hostId={agent.paseo.hostId} providerLabel={providerLabel} />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span
-            className="flex h-24 w-24 shrink-0 items-end justify-center overflow-hidden rounded-2xl border"
-            style={{ background: `radial-gradient(circle at 50% 25%, ${agent.accentColor}4d, ${agent.accentColor}12 75%)`, borderColor: `${agent.accentColor}55` }}
+            className="flex h-20 w-20 shrink-0 items-end justify-center overflow-hidden rounded-xl"
+            style={{ backgroundColor: `${agent.accentColor}1f` }}
           >
-            <img src={agent.avatarUrl} alt="" className="h-[90px] w-[90px] pointer-events-none object-contain drop-shadow-lg" />
+            <img src={agent.avatarUrl} alt="" className="h-[72px] w-[72px] pointer-events-none object-contain" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors">
+            <h2 className="truncate text-[15px] font-semibold tracking-tight text-foreground">
               {agent.name}
             </h2>
             <p className="truncate text-xs text-muted-foreground mt-0.5">{agent.role}</p>
@@ -80,10 +77,8 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
       </div>
 
       {/* Centre : Extrait du dernier fil (hauteur clampée fixe et régulière) */}
-      <div className="my-auto min-h-[96px] flex flex-col justify-center rounded-xl bg-muted/40 p-3 border border-border/40">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-          Dernier fil
-        </p>
+      <div className="my-auto min-h-[76px] flex flex-col justify-center">
+        <p className="text-[10px] font-medium text-muted-foreground mb-1">Dernier fil</p>
         {last.title ? (
           <>
             <p className="truncate text-xs font-semibold text-foreground">{last.title}</p>
@@ -98,9 +93,9 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
       </div>
 
       {/* Pied : Modèle LLM et endpoint */}
-      <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3 font-mono text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 border-t border-border/50 pt-2.5 font-mono text-[11px] text-muted-foreground">
         <span className="truncate max-w-[180px]">{last.model ?? agent.paseo.model ?? "Modèle non renseigné"}</span>
-        <PressButton onPress={() => setStatsOpen(true)} className="flex min-h-9 shrink-0 items-center gap-1 rounded-lg bg-muted/70 px-2 font-sans text-[10px] font-semibold text-foreground"><BarChart3 className="h-3 w-3" />Voir les stats</PressButton>
+        <PressButton onPress={() => setStatsOpen(true)} className="flex min-h-8 shrink-0 items-center gap-1 rounded-md px-1.5 font-sans text-[10px] text-muted-foreground hover:text-foreground"><BarChart3 className="h-3 w-3" />Stats</PressButton>
       </div>
     </PressTarget>
     {statsOpen && <StatsModal initialTargetId={agent.id} onClose={() => setStatsOpen(false)} />}
@@ -116,7 +111,7 @@ function ApprovalsBanner() {
   if (items.length === 0) return null;
 
   return (
-    <section className={cn(CARD, "mb-6 flex flex-col gap-3 p-5 border-amber-500/40 bg-amber-500/5")} aria-label="À valider">
+    <section className={cn(CARD, "mb-6 flex flex-col gap-3 p-4 border-amber-500/40 bg-amber-500/5")} aria-label="À valider">
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
           À valider ({items.length})
@@ -172,7 +167,7 @@ export function RoomHome() {
   return (
     <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
       {/* En-tête ROOM */}
-      <header className="mb-6 sm:mb-8">
+      <header data-tauri-drag-region className="mb-6 sm:mb-8">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">ROOM</h1>
           <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
@@ -194,7 +189,7 @@ export function RoomHome() {
         ))}
 
         {/* Fiche Nouvel agent avec la même hauteur exacte */}
-        <PressButton onPress={openCreation} className="flex h-[370px] w-full flex-col items-center justify-center gap-2.5 rounded-[22px] border border-dashed border-border/80 bg-card/30 p-6 text-center text-muted-foreground transition-colors hover:border-foreground/30 cursor-pointer touch-manipulation">
+        <PressButton onPress={openCreation} className="flex h-[300px] w-full flex-col items-center justify-center gap-2.5 rounded-[22px] border border-dashed border-border/70 p-6 text-center text-muted-foreground transition-colors hover:border-foreground/25 cursor-pointer touch-manipulation">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-muted-foreground">
             <Plus className="h-5 w-5 pointer-events-none" />
           </div>

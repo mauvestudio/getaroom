@@ -15,17 +15,21 @@ export function ToolActivityGroup({ items }: { items: ToolCallTimelineItem[] }) 
   const state = running ? "en cours" : failed ? "dont certaines en échec" : items.length === 1 ? "exécutée" : "exécutées";
 
   return (
-    <div className="my-2 max-w-full">
+    <div className="my-1 max-w-full">
       <PressButton
         onPress={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
-        className="flex max-w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        className="flex max-w-full items-center gap-2 py-1 min-h-[44px] sm:min-h-[32px] text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
       >
-        <Wrench className={`h-4 w-4 shrink-0 ${running ? "text-amber-500 animate-pulse" : failed ? "text-destructive" : ""}`} />
+        <Wrench className={`h-3 w-3 shrink-0 ${running ? "text-amber-500 animate-pulse" : failed ? "text-destructive" : ""}`} />
         <span>{items.length} {t(activity)} {t(state)}</span>
-        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-3 w-3 shrink-0 text-muted-foreground/60 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </PressButton>
-      {expanded && <div className="ml-5 border-l border-border/60 pl-3">{items.map((item) => <ToolCallItem key={item.callId} item={item} />)}</div>}
+      {expanded && (
+        <div className="mt-1 ml-[5px] border-l border-border/50 pl-3">
+          {items.map((item) => <ToolCallItem key={item.callId} item={item} />)}
+        </div>
+      )}
     </div>
   );
 }

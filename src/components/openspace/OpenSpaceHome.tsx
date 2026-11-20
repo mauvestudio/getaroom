@@ -13,6 +13,7 @@ import {
   Inbox,
   GitBranch,
   GitPullRequest,
+  Boxes,
 } from "lucide-react";
 import { useRoom } from "../../context/RoomContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
@@ -28,6 +29,7 @@ import { StatsModal } from "./StatsModal";
 import { HermesStatusBadge } from "../ui/HermesStatusBadge";
 import { usePaseo } from "../../context/PaseoContext";
 import type { GitStatusSummary } from "../../lib/paseo/types";
+import { resolveWorkspacePath } from "../../lib/resolve-workspace-path";
 import { githubRemoteLabel } from "../../lib/paseo/git-status";
 
 type ScopeFilter = "all" | "room" | "studio";
@@ -132,7 +134,8 @@ export function OpenSpaceHome() {
         await Promise.all(projects.slice(index, index + 4).map(async (project) => {
           if (!project.rootPath) return;
           try {
-            const status = await localClient.getGitStatus(project.rootPath, undefined, false);
+            const cwd = await resolveWorkspacePath(project.rootPath);
+            const status = await localClient.getGitStatus(cwd, undefined, false);
             if (!cancelled) setProjectGitStatuses((current) => ({ ...current, [project.id]: status }));
           } catch { /* Un projet inaccessible n'affiche aucune action Git. */ }
         }));
@@ -315,13 +318,17 @@ export function OpenSpaceHome() {
     () => allItems.filter((i) => i.status === "working" || i.status === "approval").length,
     [allItems],
   );
+  const activeTheRoomAgents = useMemo(
+    () => roomAgents.filter((agent) => statusOf(agent) !== "idle").length,
+    [roomAgents, statusOf],
+  );
 
   return (
     <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
       <div className="mx-auto w-full max-w-[1720px]">
       {/* Barre supérieure : Titre, recherche et filtres */}
       <div className="mb-6 flex flex-col gap-4 border-b border-border/40 pb-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div data-tauri-drag-region className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">Open Space</h1>
@@ -337,6 +344,19 @@ export function OpenSpaceHome() {
 
           {/* Filtres de périmètre compacts */}
           <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto">
+          <PressButton
+            onPress={() => setMode("the-room")}
+            className="the-room-quick-button flex h-[30px] items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold text-foreground"
+            aria-label={`Ouvrir The Room, ${activeTheRoomAgents} agent${activeTheRoomAgents === 1 ? "" : "s"} actif${activeTheRoomAgents === 1 ? "" : "s"}`}
+            title="Ouvrir The Room"
+          >
+            <Boxes className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <span>The Room</span>
+            <span className="ml-0.5 inline-flex items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 font-mono text-[9px] font-medium text-muted-foreground">
+              <span className={activeTheRoomAgents > 0 ? "h-1.5 w-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" : "h-1.5 w-1.5 rounded-full bg-foreground/65"} />
+              {activeTheRoomAgents}
+            </span>
+          </PressButton>
           <PressButton onPress={() => { setStatsTargetId(undefined); setStatsOpen(true); }} className="flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground"><BarChart3 className="h-3.5 w-3.5" />Statistiques</PressButton>
           <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/80 border border-border/60" role="tablist">
             {(
@@ -385,11 +405,11 @@ export function OpenSpaceHome() {
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sidebar-room-edge/15 text-sidebar-room-edge">
                 <Bot className="h-3.5 w-3.5" />
               </span>
               <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
-                ROOM — Agents
+                Room Agents
               </h2>
               <span className="text-xs text-muted-foreground">· Agents Hermes • Unraid via ACP</span>
             </div>
@@ -398,7 +418,7 @@ export function OpenSpaceHome() {
             </span>
           </div>
 
-          <LargeCardsGrid items={roomItems} onStats={(targetId) => { setStatsTargetId(targetId); setStatsOpen(true); }} />
+          <LargeCardsGrid square items={roomItems} onStats={(targetId) => { setStatsTargetId(targetId); setStatsOpen(true); }} />
         </section>
       )}
 
@@ -406,11 +426,11 @@ export function OpenSpaceHome() {
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sidebar-studio-edge/15 text-sidebar-studio-edge">
                 <Code2 className="h-3.5 w-3.5" />
               </span>
               <h2 className="text-sm font-bold uppercase tracking-wider text-foreground">
-                PROJETS — Studio & Dev
+                Projets Studio & Dev
               </h2>
               <span className="text-xs text-muted-foreground">· Dépôts locaux & terminal PTY Mac</span>
             </div>
@@ -440,9 +460,9 @@ export function OpenSpaceHome() {
   );
 }
 
-function LargeCardsGrid({ items, onStats }: { items: OpenSpaceItem[]; onStats: (targetId: string) => void }) {
+function LargeCardsGrid({ items, onStats, square = false }: { items: OpenSpaceItem[]; onStats: (targetId: string) => void; square?: boolean }) {
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">{items.map((item) => <OpenSpaceCard key={item.key} item={item} onStats={() => onStats(item.statsTargetId)} />)}{!items.length && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">Aucun élément pour ce filtre.</p>}</div>
+    <div className={square ? "grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-4" : "grid grid-cols-1 gap-4 xl:grid-cols-2"}>{items.map((item) => <OpenSpaceCard key={item.key} item={item} onStats={() => onStats(item.statsTargetId)} />)}{!items.length && <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">Aucun élément pour ce filtre.</p>}</div>
   );
 }
 
@@ -463,7 +483,7 @@ function OpenSpaceCard({ item, onStats }: { item: OpenSpaceItem; onStats: () => 
     return (
       <PressTarget
         onPress={item.open}
-        className="open-space-agent-card group relative isolate flex min-h-[260px] w-full flex-col overflow-hidden rounded-[22px] border p-5 text-left cursor-pointer touch-manipulation"
+        className="open-space-agent-card group relative isolate flex aspect-square w-full flex-col overflow-hidden rounded-[22px] border p-4 text-left cursor-pointer touch-manipulation"
         style={{
           "--agent-accent": item.accentColor,
           "--agent-tint": `${item.accentColor}30`,
@@ -476,21 +496,21 @@ function OpenSpaceCard({ item, onStats }: { item: OpenSpaceItem; onStats: () => 
           <HermesStatusBadge providerId={item.identityProviderId} hostId={item.identityHostId} providerLabel={item.identityLabel} compact />
           <LiveBadge status={item.status} accent={item.accentColor} className="shrink-0" />
         </div>
-        <div className="relative z-10 flex min-h-0 flex-1 items-center gap-5 py-4">
-          <span className="open-space-agent-portrait flex h-32 w-32 shrink-0 items-end justify-center overflow-hidden rounded-[28px] border sm:h-36 sm:w-36">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-2 text-center">
+          <span className="open-space-agent-portrait flex aspect-square h-auto max-h-[46%] w-[46%] shrink-0 items-end justify-center overflow-hidden rounded-[22px] border">
             <img src={item.avatarUrl} alt="" className="h-[94%] w-[94%] pointer-events-none object-contain drop-shadow-xl" />
           </span>
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-xl font-semibold tracking-tight text-foreground">{item.name}</h3>
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.subTitle}</p>
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
-              {(item.stats || []).map((stat) => <span key={stat.label} className="text-[11px] text-muted-foreground">{stat.label} <strong className="font-mono font-semibold text-foreground">{stat.value}</strong></span>)}
+          <div className="w-full min-w-0">
+            <h3 className="truncate text-base font-semibold tracking-tight text-foreground">{item.name}</h3>
+            <p className="mt-0.5 line-clamp-1 text-[11px] leading-relaxed text-muted-foreground">{item.subTitle}</p>
+            <div className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-0.5">
+              {(item.stats || []).map((stat) => <span key={stat.label} className="text-[10px] text-muted-foreground">{stat.label} <strong className="font-mono font-semibold text-foreground">{stat.value}</strong></span>)}
             </div>
           </div>
         </div>
-        <div className="relative z-10 flex min-w-0 items-center justify-between gap-3 border-t border-border/60 pt-3">
-          <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">{item.model || "Modèle non renseigné"}</span>
-          <PressButton onPress={onStats} className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-card/70 px-2.5 text-[11px] font-semibold text-foreground backdrop-blur-sm"><BarChart3 className="h-3.5 w-3.5" />Voir les stats</PressButton>
+        <div className="relative z-10 flex min-w-0 items-center justify-between gap-2 border-t border-border/60 pt-2.5">
+          <span className="min-w-0 truncate font-mono text-[10px] text-muted-foreground">{item.model || "Modèle non renseigné"}</span>
+          <PressButton onPress={onStats} aria-label="Voir les stats" title="Voir les stats" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-card/70 text-foreground backdrop-blur-sm"><BarChart3 className="h-3.5 w-3.5" /></PressButton>
         </div>
       </PressTarget>
     );

@@ -38,6 +38,7 @@
   --color-sidebar-room-edge: var(--sidebar-room-edge);
   --color-sidebar-studio-active: var(--sidebar-studio-active);
   --color-sidebar-studio-edge: var(--sidebar-studio-edge);
+  --color-sidebar-openspace-edge: var(--sidebar-openspace-edge);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -65,84 +66,95 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Papier chaud : teintes ivoire, jamais de blanc pur ni de gris bleutés. */
+/* Papier chaud adouci, aligné sur les neutres Paseo. */
 :root {
-  --radius: 0.75rem;
-  --background: #fdfcfa;
-  --foreground: #393a34;
-  --card: #f5f1ea;
-  --card-foreground: #393a34;
-  --popover: #faf8f3;
-  --popover-foreground: #393a34;
-  --primary: #1c1c1a;
-  --primary-foreground: #fdfcfa;
-  --secondary: #eee9df;
-  --secondary-foreground: #393a34;
-  --muted: #eee9df;
-  /* #82847a du design initial (3,6:1) relevé à #6b6d63 (5,3:1) pour la lisibilité du petit texte. */
-  --muted-foreground: #6b6d63;
-  --accent: #eee9df;
-  --accent-foreground: #393a34;
-  --destructive: #c0392b;
-  --border: #e8e4dc;
-  --input: #e2ddd2;
-  --ring: #a8a597;
+  --radius: 0.625rem;
+  --background: #fcfbf8;
+  --foreground: #1a1a1e;
+  --card: #ffffff;
+  --card-foreground: #1a1a1e;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1e;
+  --primary: #1a1a1e;
+  --primary-foreground: #fcfbf8;
+  --secondary: #f4f2ee;
+  --secondary-foreground: #1a1a1e;
+  --muted: #f4f2ee;
+  --muted-foreground: #6b6b73;
+  --accent: #f0eee9;
+  --accent-foreground: #1a1a1e;
+  --destructive: #b4443d;
+  --border: #e8e5df;
+  --input: #e2ded6;
+  --ring: #a1a1aa;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: #f7f4ed;
-  --sidebar-foreground: #393a34;
-  --sidebar-primary: #1c1c1a;
-  --sidebar-primary-foreground: #fdfcfa;
-  --sidebar-accent: #eee9df;
-  --sidebar-accent-foreground: #393a34;
-  --sidebar-border: #e8e4dc;
-  --sidebar-ring: #a8a597;
-  --sidebar-room-active: #f4e2bd;
-  --sidebar-room-edge: #a96612;
-  --sidebar-studio-active: #e5e1f5;
-  --sidebar-studio-edge: #6352aa;
+  --sidebar: #f7f5f1;
+  --sidebar-foreground: #1a1a1e;
+  --sidebar-primary: #1a1a1e;
+  --sidebar-primary-foreground: #fcfbf8;
+  --sidebar-accent: #efece6;
+  --sidebar-accent-foreground: #1a1a1e;
+  --sidebar-border: #e8e5df;
+  --sidebar-ring: #a1a1aa;
+  --sidebar-room-active: #efece6;
+  --sidebar-room-edge: #475569;
+  --sidebar-studio-active: #e9e7f2;
+  --sidebar-studio-edge: #4f46e5; /* indigo-600 : bouton Dev = icône « Projets Studio & Dev » */
+  --sidebar-openspace-edge: #0f766e;
+  --the-room-control-bg: rgba(26, 26, 30, 0.04);
+  --the-room-control-border: rgba(26, 26, 30, 0.12);
+  --the-room-control-hover-bg: rgba(26, 26, 30, 0.06);
+  --the-room-control-hover-border: rgba(26, 26, 30, 0.45);
+  --the-room-control-glow: rgba(26, 26, 30, 0.08);
 }
 
-/* Nuit chaude : charbon légèrement brun, texte crème. */
+/* Nuit graphite : palette Paseo, contrastes doux. */
 .dark {
-  --background: #181816;
-  --foreground: #e5e5df;
-  --card: #242420;
-  --card-foreground: #e5e5df;
-  --popover: #242420;
-  --popover-foreground: #e5e5df;
-  --primary: #f4f4f0;
-  --primary-foreground: #1c1c1a;
-  --secondary: #2c2c27;
-  --secondary-foreground: #e5e5df;
-  --muted: #2c2c27;
-  --muted-foreground: #8a8a82;
-  --accent: #2c2c27;
-  --accent-foreground: #e5e5df;
-  --destructive: #f0716a;
-  --border: #33332d;
-  --input: #3b3b34;
-  --ring: #6b6b62;
+  --background: #18181b;
+  --foreground: #e4e4e7;
+  --card: #1f1f22;
+  --card-foreground: #e4e4e7;
+  --popover: #1f1f22;
+  --popover-foreground: #e4e4e7;
+  --primary: #e4e4e7;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #e4e4e7;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #e4e4e7;
+  --destructive: #c44a4a;
+  --border: #27272a;
+  --input: #303036;
+  --ring: #52525b;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #1e1e1b;
-  --sidebar-foreground: #e5e5df;
-  --sidebar-primary: #f4f4f0;
-  --sidebar-primary-foreground: #1c1c1a;
-  --sidebar-accent: #2c2c27;
-  --sidebar-accent-foreground: #e5e5df;
-  --sidebar-border: #33332d;
-  --sidebar-ring: #6b6b62;
-  --sidebar-room-active: #45351f;
-  --sidebar-room-edge: #e6ad57;
-  --sidebar-studio-active: #35324d;
-  --sidebar-studio-edge: #b6a7f2;
+  --sidebar: #131316;
+  --sidebar-foreground: #e4e4e7;
+  --sidebar-primary: #e4e4e7;
+  --sidebar-primary-foreground: #18181b;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #e4e4e7;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #52525b;
+  --sidebar-room-active: #27272a;
+  --sidebar-room-edge: #ffffff;
+  --sidebar-studio-active: #27272a;
+  --sidebar-studio-edge: #818cf8; /* indigo-400 */
+  --sidebar-openspace-edge: #5eead4;
+  --the-room-control-bg: rgba(255, 255, 255, 0.04);
+  --the-room-control-border: rgba(255, 255, 255, 0.12);
+  --the-room-control-hover-bg: rgba(255, 255, 255, 0.06);
+  --the-room-control-hover-border: rgba(255, 255, 255, 0.45);
+  --the-room-control-glow: rgba(255, 255, 255, 0.08);
 }
 
 @layer base {
@@ -155,84 +167,56 @@
   }
 }
 
-/* Verre teinté réservé aux agents ROOM dans la barre latérale. */
-.room-agent-glass {
-  position: relative;
-  isolation: isolate;
-  border-left: 3px solid transparent;
-  background-color: color-mix(in srgb, var(--agent-accent) 8%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  backdrop-filter: blur(12px) saturate(1.2);
+.the-room-quick-button {
+  border: 1px solid var(--the-room-control-border);
+  background-color: var(--the-room-control-bg);
+  box-shadow: none;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
-.room-agent-glass::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--agent-accent) 20%, transparent), transparent 70%);
-  opacity: .35;
+@media (hover: hover) and (pointer: fine) {
+  .the-room-quick-button:hover {
+    border-color: var(--the-room-control-hover-border);
+    background-color: var(--the-room-control-hover-bg);
+    box-shadow: 0 0 12px var(--the-room-control-glow);
+  }
+}
+
+/* Accent agent discret : filet à gauche, fond presque transparent. */
+.room-agent-glass {
+  position: relative;
+  border-left: 2px solid transparent;
+  background-color: transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .room-agent-glass[data-selected="true"] {
   border-left-color: var(--agent-accent);
-  background-color: color-mix(in srgb, var(--agent-accent) 15%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agent-accent) 28%, transparent), 0 0 14px color-mix(in srgb, var(--agent-accent) 8%, transparent);
+  background-color: color-mix(in srgb, var(--agent-accent) 7%, transparent);
 }
-
-.room-agent-glass[data-selected="true"]::before { opacity: .55; }
 
 @media (hover: hover) and (pointer: fine) {
   .room-agent-glass:not([data-selected="true"]):hover {
-    background-color: color-mix(in srgb, var(--agent-accent) 14%, transparent);
+    background-color: color-mix(in srgb, var(--agent-accent) 5%, transparent);
   }
 }
 
-/* Cartes portrait des agents ROOM dans Open Space. */
+/* Carte agent Open Space : tint léger, plus de blur ni glow. */
 .open-space-agent-card {
-  border-color: var(--agent-border);
-  background: radial-gradient(ellipse at 35% 20%, var(--agent-tint), transparent 72%), var(--card);
-  -webkit-backdrop-filter: blur(18px) saturate(1.25);
-  backdrop-filter: blur(18px) saturate(1.25);
-  box-shadow: inset 0 1px var(--agent-sheen), 0 12px 32px var(--agent-sheen);
-}
-
-.open-space-agent-card::before {
-  content: "";
-  position: absolute;
-  inset: -25% -15% 20% -15%;
-  z-index: -1;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 45%, var(--agent-glow), transparent 65%);
-  filter: blur(22px);
-}
-
-.open-space-agent-card::after {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(135deg, var(--agent-sheen), transparent 38%);
-  opacity: .45;
-}
-
-.open-space-agent-portrait {
-  border-color: var(--agent-border);
-  background: radial-gradient(circle at 50% 25%, var(--agent-tint), var(--card) 78%);
-  box-shadow: inset 0 1px var(--agent-sheen), 0 18px 40px var(--agent-glow);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  border-color: var(--border);
+  background: var(--card);
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .open-space-agent-card:hover {
-    border-color: var(--agent-accent);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--agent-accent) 45%, var(--border));
   }
+}
+
+.open-space-agent-portrait {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--agent-accent) 6%, var(--card));
 }
 
 /* Syntax Highlighting Tokens (Semantic Theme Palette) */
@@ -348,6 +332,40 @@
   background: rgba(255, 255, 255, 0.28);
 }
 
+/* Barre latérale : molette/trackpad fluides, aucune barre visible (comme Paseo). */
+.sidebar-scroll {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.sidebar-scroll [data-radix-scroll-area-scrollbar] {
+  display: none !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.sidebar-scroll [data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.sidebar-scroll [data-radix-scroll-area-viewport]::-webkit-scrollbar,
+.sidebar-scroll [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb,
+.sidebar-scroll [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
 /* Hide native scrollbars on Radix UI ScrollArea viewports */
 [data-radix-scroll-area-viewport] {
   scrollbar-width: none !important;
@@ -364,3 +382,21 @@ html[data-density="compact"] {
   font-size: 14px;
 }
 
+
+/* Mode Dev : aucune barre de défilement visible (comme Paseo). Molette et trackpad restent actifs. */
+.hide-scrollbars,
+.hide-scrollbars * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.hide-scrollbars::-webkit-scrollbar,
+.hide-scrollbars *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.hide-scrollbars [data-radix-scroll-area-scrollbar] {
+  display: none !important;
+}

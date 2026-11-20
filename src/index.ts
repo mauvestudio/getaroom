@@ -14,6 +14,9 @@ import { paseoHostProbeApi } from "./server/paseo-host-probe";
 import { relayLogsApi } from "./server/relay-logs";
 import { getRemoteHosts, paseoHostsApi } from "./server/paseo-hosts";
 import { profileApi } from "./server/profile-api";
+import { projectActionsApi } from "./server/project-actions";
+import { charactersApi } from "./server/characters-api";
+import { roomsApi } from "./server/rooms-api";
 import {
   handleWsUpgrade,
   proxyWebSocketHandler,
@@ -109,6 +112,9 @@ const server = serve<ProxySocketData>({
     ...roomApi,
     ...paseoHostsApi,
     ...profileApi,
+    ...projectActionsApi,
+    ...charactersApi,
+    ...roomsApi,
     ...relayLogsApi,
     ...paseoHostProbeApi,
 

@@ -1,6 +1,7 @@
 import type { ServerWebSocket } from "bun";
 import { openPaseoWebSocket } from "../../server/paseo-websocket";
 import { recordRelayLog } from "../../server/relay-logs";
+import { forbiddenResponse, isTrustedRequest } from "../../server/request-guard";
 
 export interface ProxySocketData {
   clientProtocol?: string;
@@ -96,6 +97,12 @@ export function handleWsUpgrade(
   upstreamUrl?: string,
   upstreamToken?: string,
 ): Response | void {
+  // Bloque le Cross-Site WebSocket Hijacking : un site tiers ne doit jamais
+  // pouvoir ouvrir un tunnel vers le daemon Paseo via ce relais.
+  if (!isTrustedRequest(req)) {
+    recordRelayLog("warning", `Handshake WebSocket refusé (origine ${req.headers.get("origin") || "inconnue"})`);
+    return forbiddenResponse();
+  }
   const proto = req.headers.get("sec-websocket-protocol");
   const clientUrl = new URL(req.url);
   const target = new URL(upstreamUrl || getUpstreamWsUrl());

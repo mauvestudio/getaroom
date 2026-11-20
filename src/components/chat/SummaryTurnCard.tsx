@@ -231,25 +231,25 @@ export function SummaryTurnCard({
   }, [combinedThoughtText, isStreamingReasoning]);
 
   return (
-    <div className="my-2 sm:my-3 space-y-2 sm:space-y-3">
+    <div className="my-3 space-y-3">
       {/* 2-Column Summary Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
         {/* Left Column: Tools Summary */}
-        <div className="order-2 md:order-1 rounded-lg border border-border/60 bg-muted/20 p-2.5 md:p-3 flex flex-col min-w-0 min-h-0 md:min-h-[160px]">
-          <div className="flex items-center justify-between pb-1.5 md:pb-2 border-b border-border/40 text-xs font-semibold text-foreground select-none shrink-0">
+        <div className="order-2 md:order-1 flex flex-col min-w-0 min-h-0 md:min-h-[160px]">
+          <div className="flex items-center justify-between pb-2 border-b border-border/50 text-[11px] font-medium text-foreground select-none shrink-0">
             <div className="flex items-center gap-1.5">
               <Wrench className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>Tools</span>
+              <span>Outils</span>
             </div>
             <span className="text-[11px] font-mono text-muted-foreground font-normal">
-              {totalToolsCount} {totalToolsCount === 1 ? "call" : "calls"}
+              {totalToolsCount} {totalToolsCount === 1 ? "appel" : "appels"}
             </span>
           </div>
 
           {/* Tasks & Plan (if present) */}
           {tasks.length > 0 && (
-            <div className="py-2 border-b border-border/30 space-y-2 shrink-0">
-              <div className="flex items-center justify-between text-[10px] uppercase font-semibold text-muted-foreground tracking-wider select-none">
+            <div className="py-2.5 border-b border-border/40 space-y-2 shrink-0">
+              <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground select-none">
                 <div className="flex items-center gap-1.5">
                   <ListTodo className="w-3.5 h-3.5 text-primary" />
                   <span>Tâches et plan</span>
@@ -283,7 +283,7 @@ export function SummaryTurnCard({
                     className="mt-1.5 min-h-8 text-[11px] font-medium text-primary touch-manipulation"
                     aria-expanded={showAllTasksMobile}
                   >
-                    {showAllTasksMobile ? "Réduire les tâches" : `Show all ${tasks.length} tasks`}
+                    {showAllTasksMobile ? "Réduire les tâches" : `Afficher les ${tasks.length} tâches`}
                   </PressButton>
                 )}
               </div>
@@ -292,9 +292,9 @@ export function SummaryTurnCard({
 
           {recentToolCalls.length > 0 && (
             <div className="md:hidden border-b border-border/30 py-2 space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] uppercase font-semibold text-muted-foreground tracking-wider select-none">
+              <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground select-none">
                 <span>Activité récente</span>
-                <span className="font-mono font-normal">{recentToolCalls.length} latest</span>
+                <span className="font-mono font-normal">{recentToolCalls.length} derniers</span>
               </div>
               <div className="-mx-1">
                 {recentToolCalls.map((call) => (
@@ -365,8 +365,8 @@ export function SummaryTurnCard({
           {/* Touched / Modified files */}
           {modifiedFiles.length > 0 && (
             <div className="pt-1.5 md:pt-2 border-t border-border/30 mt-auto select-none shrink-0">
-              <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider mb-1.5">
-                Touched Files ({modifiedFiles.length})
+              <div className="text-[10px] font-medium text-muted-foreground mb-1.5">
+                Fichiers modifiés ({modifiedFiles.length})
               </div>
               <div className="space-y-1 max-h-20 md:max-h-28 overflow-y-auto pr-1">
                 {modifiedFiles.map((file) => (
@@ -400,16 +400,16 @@ export function SummaryTurnCard({
         </div>
 
         {/* Right Column: Thought Log Mini Console */}
-        <div className="order-1 md:order-2 rounded-lg border border-border/60 bg-muted/20 p-2.5 md:p-3 flex flex-col min-w-0 min-h-[156px] max-h-[190px] md:h-0 md:min-h-full md:max-h-none">
-          <div className="flex items-center justify-between pb-1.5 md:pb-2 border-b border-border/40 text-xs font-semibold text-foreground select-none shrink-0">
+        <div className="order-1 md:order-2 flex flex-col min-w-0 min-h-[156px] max-h-[190px] md:h-0 md:min-h-full md:max-h-none">
+          <div className="flex items-center justify-between pb-2 border-b border-border/50 text-[11px] font-medium text-foreground select-none shrink-0">
             <div className="flex items-center gap-1.5">
               <Brain className="w-3.5 h-3.5 text-blue-500" />
-              <span>Journal de réflexion</span>
+              <span>Réflexion</span>
             </div>
             {isStreamingReasoning ? (
               <div className="flex items-center gap-1 text-[11px] text-amber-500 font-mono">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                <span>thinking</span>
+                <span>réflexion</span>
               </div>
             ) : totalReasoningDurationMs > 0 ? (
               <span className="text-[11px] font-mono text-muted-foreground font-normal">
@@ -421,7 +421,7 @@ export function SummaryTurnCard({
           {/* Monospace Scrolling Console */}
           <div
             ref={thoughtScrollRef}
-            className="mt-1.5 md:mt-2 h-[108px] md:h-auto md:flex-1 min-h-0 overflow-y-auto overflow-x-hidden text-xs leading-relaxed bg-background/60 rounded-md p-2 md:p-2.5 border border-border/30 text-muted-foreground select-text"
+            className="mt-2 h-[108px] md:h-auto md:flex-1 min-h-0 overflow-y-auto overflow-x-hidden text-[13px] leading-6 text-muted-foreground select-text"
           >
             {combinedThoughtText ? (
               <MarkdownRenderer content={combinedThoughtText} variant="thought" />
@@ -443,8 +443,8 @@ export function SummaryTurnCard({
       {assistantMessage ? (
         <AssistantMessage item={assistantMessage} />
       ) : isCurrentRunningTurn ? (
-        <div className="flex items-center gap-2.5 p-3 rounded-xl border border-border/40 bg-muted/20 text-xs text-muted-foreground animate-pulse select-none">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500 shrink-0" />
+        <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground select-none">
+          <Loader2 className="w-3 h-3 animate-spin text-amber-500/80 shrink-0" />
           <span>L'agent exécute…</span>
         </div>
       ) : null}

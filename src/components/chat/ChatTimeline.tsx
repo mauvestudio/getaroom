@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useLayoutEffect, useMemo } from "react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { ScrollArea } from "../ui/scroll-area";
+import { TimelineMinimap } from "./TimelineMinimap";
+import { useVisualHistory } from "../../lib/visual-history";
 import { PressButton } from "../ui/button";
 import { UserCard } from "./UserCard";
 import { AssistantMessage } from "./AssistantMessage";
@@ -63,6 +65,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
   }, [pendingPermissions, activeAgentId]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [visualHistory] = useVisualHistory();
   const contentRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const initialScrollDoneRef = useRef<string | null>(null);
@@ -324,22 +327,24 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
   };
 
   const samplePrompts = [
-    { label: "Analyser la structure du projet", icon: <Search className="w-3.5 h-3.5 text-purple-500" />, prompt: "Explore le code et explique l'architecture principale et l'organisation des dossiers." },
-    { label: "Lancer les tests et examiner les échecs", icon: <Terminal className="w-3.5 h-3.5 text-amber-500" />, prompt: "Lance la suite de tests et résume les échecs avec des corrections proposées." },
-    ...(gitStatus?.isGitRepo ? [{ label: "Relire les derniers changements Git", icon: <FileCode className="w-3.5 h-3.5 text-blue-500" />, prompt: "Inspecte l'état git, les derniers commits et résume les modifications en cours." }] : []),
+    { label: "Analyser la structure du projet", icon: <Search className="w-3.5 h-3.5" />, prompt: "Explore le code et explique l'architecture principale et l'organisation des dossiers." },
+    { label: "Lancer les tests et examiner les échecs", icon: <Terminal className="w-3.5 h-3.5" />, prompt: "Lance la suite de tests et résume les échecs avec des corrections proposées." },
+    ...(gitStatus?.isGitRepo ? [{ label: "Relire les derniers changements Git", icon: <FileCode className="w-3.5 h-3.5" />, prompt: "Inspecte l'état git, les derniers commits et résume les modifications en cours." }] : []),
   ];
 
   return (
     <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
       {/* Scrollable Container with Shadcn ScrollArea */}
+      {visualHistory && <TimelineMinimap viewportRef={scrollRef} contentRef={contentRef} revision={`${timeline.length}:${summaryMode}`} />}
       <ScrollArea
         type="auto"
+        hideScrollbar
         viewportRef={scrollRef}
         onScroll={handleScroll}
         className="flex-1 min-h-0 w-full"
-        viewportClassName="px-3 sm:px-4 md:px-8 py-4 sm:py-6"
+        viewportClassName="px-4 sm:px-6 md:px-10 py-6 sm:py-10"
       >
-        <div ref={contentRef} className="space-y-4 max-w-4xl w-full mx-auto min-w-0">
+        <div ref={contentRef} className="space-y-5 max-w-3xl w-full mx-auto min-w-0">
           {isTimelineLoading && timeline.length === 0 ? (
             <div className="flex items-center justify-center h-64 text-muted-foreground gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -347,36 +352,26 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
             </div>
           ) : timeline.length === 0 ? (
             /* Empty State */
-            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center max-w-md mx-auto space-y-6 select-none">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
-                <Sparkles className="w-6 h-6 text-amber-500" />
-              </div>
-
-              <div className="space-y-1.5">
-                <h2 className="text-base font-semibold text-foreground">
-                  Sur quoi veux-tu avancer aujourd'hui ?
+            <div className="flex flex-col justify-center min-h-[48vh] max-w-lg mx-auto select-none">
+              <div className="mb-8">
+                <h2 className="text-lg font-medium tracking-tight text-foreground">
+                  Sur quoi veux-tu avancer ?
                 </h2>
-                <p className="text-xs text-muted-foreground">
-                  Dossier de travail : <span className="font-semibold text-foreground">{activeWorkspace?.path?.split("/").filter(Boolean).at(-1) || activeWorkspace?.name || "espace actuel"}</span>.
-                  Pose une question, modifie du code, lance une commande ou relis un diff.
+                <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
+                  {activeWorkspace?.path?.split("/").filter(Boolean).at(-1) || activeWorkspace?.name || "Espace actuel"} · pose une question, modifie du code ou relis un diff.
                 </p>
               </div>
 
-              {/* Prompt suggestions */}
-              <div className="w-full space-y-2 pt-2">
+              <div className="border-t border-border/60">
                 {samplePrompts.map((item, idx) => (
                   <PressButton
                     key={idx}
                     onPress={() => onSelectPrompt?.(item.prompt)}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-border bg-card hover:bg-accent/60 text-left cursor-pointer transition-all hover:shadow-2xs group"
+                    className="group flex w-full items-center gap-3 border-b border-border/60 py-3 text-left text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   >
-                    <div className="p-1.5 rounded-lg bg-muted group-hover:bg-background shrink-0">
-                      {item.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-medium text-foreground">{item.label}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{item.prompt}</div>
-                    </div>
+                    <span className="shrink-0 text-muted-foreground/70">{item.icon}</span>
+                    <span className="min-w-0 flex-1 text-[13px]">{item.label}</span>
+                    <span className="shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5">→</span>
                   </PressButton>
                 ))}
               </div>
@@ -389,7 +384,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                 group.reasonings.length > 0 ||
                 group.todos.length > 0;
               return (
-                <div key={group.id} className="space-y-3">
+                <div key={group.id} className="space-y-2">
                   {/* User Card */}
                   {group.userMessage && <UserCard item={group.userMessage} />}
 
@@ -424,8 +419,8 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                   {!hasActivity &&
                     group.isCurrentRunningTurn &&
                     group.assistantMessages.length === 0 && (
-                      <div className="flex items-center gap-2.5 p-3 rounded-xl border border-border/40 bg-muted/20 text-xs text-muted-foreground animate-pulse select-none">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500 shrink-0" />
+                      <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground select-none">
+                        <Loader2 className="w-3 h-3 animate-spin text-amber-500/80 shrink-0" />
                         <span>L'agent travaille…</span>
                       </div>
                     )}
@@ -452,19 +447,35 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                 case "assistant_message":
                   return <AssistantMessage key={index} item={item} />;
                 case "reasoning": {
-                  const isLatest = index === latestReasoningIndex;
-                  const defaultExpanded = isLatest || Boolean(item.isStreaming);
+                  let start = index;
+                  while (start > 0 && timeline[start - 1]?.type !== "user_message" && timeline[start - 1]?.type !== "assistant_message") start--;
+                  if (timeline.slice(start, index).some((entry) => entry.type === "reasoning")) return null;
+
+                  const texts: string[] = [];
+                  let isStreaming = false;
+                  let durationMs = 0;
+                  let containsLatest = false;
+                  for (let cursor = index; cursor < timeline.length; cursor++) {
+                    const next = timeline[cursor];
+                    if (next?.type === "user_message" || next?.type === "assistant_message") break;
+                    if (next?.type !== "reasoning") continue;
+                    if (next.text?.trim()) texts.push(next.text.trim());
+                    if (next.isStreaming) isStreaming = true;
+                    if (next.durationMs) durationMs += next.durationMs;
+                    if (cursor === latestReasoningIndex) containsLatest = true;
+                  }
+
                   const isExpanded =
                     userReasoningOverrides[index] !== undefined
                       ? userReasoningOverrides[index]
-                      : defaultExpanded;
+                      : containsLatest || isStreaming;
 
                   return (
                     <ThinkingTrace
-                      key={index}
-                      text={item.text}
-                      isStreaming={item.isStreaming}
-                      durationMs={item.durationMs}
+                      key={`reasoning-${index}`}
+                      text={texts.join("\n\n")}
+                      isStreaming={isStreaming}
+                      durationMs={durationMs || undefined}
                       isExpanded={isExpanded}
                       onToggle={() =>
                         setUserReasoningOverrides((prev) => ({
