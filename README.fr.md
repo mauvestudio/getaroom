@@ -15,7 +15,14 @@ Relie plusieurs hôtes Paseo, reprends tes sessions, valide les demandes d’out
 
 Getaroom préserve les contrats du client, du SDK et du daemon Paseo pour les sessions, les providers, les approbations, l’état et les diffs Git, les commits locaux, les terminaux et les quotas d’utilisation. Les opérations d’un espace de travail passent par le SDK Paseo, vers l’espace sélectionné et le chemin exact de son dépôt ; Getaroom ne remplace pas le modèle de projets ou de sessions de Paseo.
 
-Getaroom ajoute sa vue multi-agents **Room** et son **Open Space** unifié. L’application macOS s’appuie sur la navigation native Tauri et ses zones de déplacement. **The Room**, une future vue isométrique, est prévue comme extension. Ces fonctions restent au-dessus de Paseo et préservent son protocole et son fonctionnement natifs.
+Getaroom ajoute **ROOM**, un simulateur visuel d’agents IA persistants qui se déplacent dans deux espaces : **Severance Office** et **Monument Office**. On peut observer leur activité, les mettre en avant ou saisir un agent par le col pour le déplacer vers un autre poste. ROOM complète l’**Open Space** unifié sans modifier le protocole ni le fonctionnement natif de Paseo.
+
+### ROOM · simulateur visuel d’agents IA
+
+| Severance Office | Monument Office |
+| --- | --- |
+| ![ROOM dans Severance Office](docs/images/room-severance.png) | ![ROOM dans Monument Office](docs/images/room-monument.png) |
+
 
 ## Prérequis
 

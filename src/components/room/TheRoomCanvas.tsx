@@ -1109,7 +1109,7 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
       ref={containerRef}
       className="relative h-full min-h-0 w-full overflow-hidden"
       style={{ backgroundColor: activeMap?.backgroundColor || "#080808" }}
-      aria-label="The Room, vue des agents en temps réel"
+      aria-label="ROOM, simulateur visuel d’agents IA"
     >
       {activeMap?.backgroundUrl && <img
         ref={imageRef}

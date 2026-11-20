@@ -27,7 +27,7 @@ export function TheRoomStandalone() {
   }, [mode, setMode]);
 
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col bg-background" aria-label="The Room">
+    <section className="flex h-full min-h-0 flex-1 flex-col bg-background" aria-label="ROOM, simulateur visuel d’agents IA">
       <header data-tauri-drag-region className="flex h-12 shrink-0 items-center gap-3 border-b border-border/60 px-3 sm:px-4">
         <PressButton
           onPress={() => setMode("openspace")}
@@ -43,8 +43,8 @@ export function TheRoomStandalone() {
             <Boxes className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">
-            <h1 className="truncate text-xs font-semibold text-foreground">The Room</h1>
-            <p className="hidden truncate font-mono text-[9px] text-muted-foreground sm:block">Salle isométrique · états Paseo en direct</p>
+            <h1 className="truncate text-xs font-semibold text-foreground">ROOM</h1>
+            <p className="hidden truncate font-mono text-[9px] text-muted-foreground sm:block">Simulateur visuel d’agents IA · états Paseo en direct</p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/30 px-2 py-1 font-mono text-[9px] text-muted-foreground" title={`${activeCount} agent${activeCount === 1 ? "" : "s"} actif${activeCount === 1 ? "" : "s"} dans The Room`}>
