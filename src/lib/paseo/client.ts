@@ -859,6 +859,11 @@ export class PaseoClient {
     return { accepted: true, error: notice?.message };
   }
 
+  /** Marque la session comme lue : la pastille verte « terminé » disparaît (comportement Paseo). */
+  public async clearAgentAttention(agentId: string): Promise<void> {
+    return this.daemon.clearAgentAttention(agentId);
+  }
+
   public async respondToPermission(
     agentId: string,
     requestId: string,

@@ -450,5 +450,8 @@
   "Afficher l’historique visuel": "Show visual history",
   "Historique visuel de la conversation": "Conversation visual history",
   "Room Agents": "Room Agents",
-  "Projets Studio & Dev": "Studio & Dev Projects"
+  "Projets Studio & Dev": "Studio & Dev Projects",
+  "En cours": "Running",
+  "Terminé": "Done",
+  "Erreur": "Error"
 }

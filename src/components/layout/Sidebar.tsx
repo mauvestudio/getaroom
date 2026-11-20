@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import { SessionStatusIcon } from "../ui/SessionStatusIcon";
+import { aggregateVisual, sessionVisual } from "../../lib/session-visual";
 import { GetaroomMark } from "../ui/GetaroomMark";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { usePaseo } from "../../context/PaseoContext";
@@ -985,7 +987,12 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
     setActiveWorkspaceId,
     createSession,
     updateWorkspaceTitle,
+    pendingPermissions,
   } = useWorkspace();
+  // État façon Paseo de chaque session : roue (en cours), vert (terminé), ambre (validation), rouge (erreur).
+  const pendingAgentIds = useMemo(() => new Set(pendingPermissions.map((entry) => entry.agentId)), [pendingPermissions]);
+  const visualOf = (session: { id: string; status?: string; requiresAttention?: boolean; attentionReason?: string | null }) =>
+    sessionVisual(session, pendingAgentIds.has(session.id));
 
   const { mode, setMode } = useMode();
   const [groupFilter, setGroupFilterState] = useState<GroupFilter>(() => {
@@ -1345,7 +1352,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                   activeAgentId === session.id ? "bg-muted/70 text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                 )}
               >
-                {session.status === "running" ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-500" /> : <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" />}
+                <SessionStatusIcon state={visualOf(session)} idle={<Sparkles className="h-3.5 w-3.5 shrink-0 opacity-60" />} />
                 <span className="min-w-0 flex-1 truncate">{session.title || "Session sans titre"}</span>
                 <span className="shrink-0 font-mono text-[9px] text-muted-foreground/70">{formatElapsed(session.updatedAt || session.createdAt)}</span>
               </PressTarget>
@@ -1414,13 +1421,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                     >
                       <div className="flex items-center justify-between gap-1.5 min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0 truncate">
-                          {session.status === "running" ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-amber-500 shrink-0" />
-                          ) : isActive ? (
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                          ) : (
-                            <Sparkles className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-                          )}
+                          <SessionStatusIcon state={visualOf(session)} idle={<Sparkles className="w-3 h-3 text-muted-foreground/50 shrink-0" />} />
                           <span className="truncate font-medium text-foreground">
                             {session.title || "Session sans titre"}
                           </span>
@@ -1545,6 +1546,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                       <span className="font-semibold text-[13px] tracking-tight lowercase truncate">
                         {project.name}
                       </span>
+                      {isProjectCollapsed && <SessionStatusIcon state={aggregateVisual([...directSessions, ...worktrees.flatMap((entry) => entry.sessions)].map(visualOf))} />}
                     </PressTarget>
                   </div>
 
@@ -1607,9 +1609,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                             }`}
                           >
                             <div className="flex items-center gap-1.5 min-w-0 truncate">
-                              {isActive && (
-                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                              )}
+                              <SessionStatusIcon state={visualOf(session)} />
                               <span className="truncate">
                                 {session.title || "Session sans titre"}
                               </span>
@@ -1799,11 +1799,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5 min-w-0 truncate">
-                                        <div
-                                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                            isActive ? "bg-amber-500" : "bg-blue-500"
-                                          }`}
-                                        />
+                                        <SessionStatusIcon state={visualOf(session)} />
                                         <span className="truncate">
                                           {session.title || "Session sans titre"}
                                         </span>

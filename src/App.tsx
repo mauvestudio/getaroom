@@ -24,6 +24,7 @@ import { PressButton } from "./components/ui/button";
 import { Onboarding } from "./components/layout/Onboarding";
 import { ProjectProfileSync } from "./components/layout/ProjectProfileSync";
 import { ApprovalNotifier, GlobalShortcuts } from "./components/layout/GlobalShortcuts";
+import { AttentionClearer } from "./components/layout/AttentionClearer";
 import { cn } from "./lib/utils";
 import "./index.css";
 
@@ -317,6 +318,7 @@ export function App() {
                   <ProjectProfileSync />
                   <GlobalShortcuts />
                   <ApprovalNotifier />
+                  <AttentionClearer />
                 </TooltipProvider>
               </SessionViewProvider>
             </RoomProvider>

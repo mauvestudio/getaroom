@@ -26,12 +26,15 @@ const ScrollArea = React.forwardRef<
       onScroll={onScroll}
       className={cn(
         "h-full w-full rounded-[inherit] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>div]:!block [&>div]:!w-full [&>div]:!min-w-0",
+        // Défilement garanti même sans barre visible (Radix met overflow:hidden si aucune barre n'est active).
+        hideScrollbar && "!overflow-y-auto",
         viewportClassName
       )}
     >
       {children}
     </ScrollAreaPrimitive.Viewport>
-    {!hideScrollbar && <ScrollBar />}
+    {/* La barre reste montée (Radix n'active le défilement qu'avec elle) mais devient invisible. */}
+    <ScrollBar className={hideScrollbar ? "pointer-events-none !w-0 !p-0 opacity-0" : undefined} />
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
 ));

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { SessionStatusIcon } from "../ui/SessionStatusIcon";
+import { sessionVisual } from "../../lib/session-visual";
 import { useWorkspace, type WorkspaceTabItem } from "../../context/WorkspaceContext";
 import { Sparkles, Terminal, GitCommit, X, Loader2, Pencil } from "lucide-react";
 import { PressButton, PressTarget } from "../ui/button";
@@ -15,6 +17,8 @@ export function WorkspaceTabsRow() {
     openChangesTab,
     renameTab,
     gitStatus,
+    allAgents,
+    pendingPermissions,
   } = useWorkspace();
 
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -73,11 +77,13 @@ export function WorkspaceTabsRow() {
             >
               {/* Tab Icon & Status */}
               {tab.kind === "agent" ? (
-                tab.status === "running" ? (
-                  <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin shrink-0" />
-                ) : (
-                  <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
-                )
+                <SessionStatusIcon
+                  state={sessionVisual(
+                    allAgents.find((agent) => agent.id === tab.targetId) ?? (tab.status === "running" ? { status: "running" } : null),
+                    pendingPermissions.some((entry) => entry.agentId === tab.targetId),
+                  )}
+                  idle={<Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />}
+                />
               ) : tab.kind === "terminal" ? (
                 <Terminal className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
               ) : (

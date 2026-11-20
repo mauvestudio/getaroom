@@ -1,11 +1,13 @@
 import type { CSSProperties } from "react";
 import { cn } from "../../lib/utils";
 import { STATUS_LABEL, type LiveStatus } from "../../lib/room-status";
+import { SessionStatusIcon } from "../ui/SessionStatusIcon";
+import type { SessionVisual } from "../../lib/session-visual";
 
 const TONE: Record<LiveStatus, { text: string; wash: string; dot: string; pulse: boolean }> = {
   working: { text: "text-foreground", wash: "bg-muted", dot: "bg-foreground", pulse: true },
   approval: { text: "text-amber-600 dark:text-amber-400", wash: "bg-amber-500/10", dot: "bg-amber-500", pulse: true },
-  review: { text: "text-blue-600 dark:text-blue-400", wash: "bg-blue-500/10", dot: "bg-blue-500", pulse: false },
+  review: { text: "text-emerald-600 dark:text-emerald-400", wash: "bg-emerald-500/10", dot: "bg-emerald-500", pulse: false },
   idle: { text: "text-muted-foreground", wash: "bg-muted", dot: "bg-muted-foreground/50", pulse: false },
 };
 
@@ -13,8 +15,11 @@ const TONE: Record<LiveStatus, { text: string; wash: string; dot: string; pulse:
 const accentStyle = (status: LiveStatus, accent?: string): CSSProperties | undefined =>
   status === "working" && accent ? { backgroundColor: accent } : undefined;
 
-/** Pastille d'état en direct : pulse quand l'agent travaille ou attend une validation. */
+const VISUAL: Record<LiveStatus, SessionVisual> = { working: "running", approval: "permission", review: "finished", idle: "idle" };
+
+/** Indicateur d'état façon Paseo : roue quand l'agent réfléchit, vert quand c'est fini, ambre pour une validation. */
 export function StatusDot({ status, accent, className }: { status: LiveStatus; accent?: string; className?: string }) {
+  if (status !== "idle") return <SessionStatusIcon state={VISUAL[status]} color={status === "working" ? accent : undefined} className={className} />;
   const t = TONE[status];
   const style = accentStyle(status, accent);
   return (
