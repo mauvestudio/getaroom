@@ -46,6 +46,33 @@ import {
 } from "lucide-react";
 import { ContextUsagePill } from "../layout/ContextUsagePill";
 
+function containsDroppedFiles(transfer: DataTransfer | null): boolean {
+  if (!transfer) return false;
+  const types = Array.from(transfer.types || []).map((type) => type.toLowerCase());
+  return (
+    types.some((type) => type === "files" || type.includes("file")) ||
+    Array.from(transfer.items || []).some((item) => item.kind === "file") ||
+    transfer.files.length > 0
+  );
+}
+
+function getDroppedFiles(transfer: DataTransfer): File[] {
+  const files = Array.from(transfer.files);
+  for (const item of Array.from(transfer.items || [])) {
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+
+  const seen = new Set<string>();
+  return files.filter((file) => {
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getModeIcon(modeId: string) {
   switch (modeId.toLowerCase()) {
     case "plan":
@@ -120,6 +147,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const handledDropEventsRef = useRef(new WeakSet<Event>());
   const speechRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const speechAvailable = typeof window !== "undefined" && Boolean((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
@@ -202,6 +230,23 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     }
   };
 
+  const handleDroppedFiles = useCallback((event: DragEvent) => {
+    if (handledDropEventsRef.current.has(event) || !containsDroppedFiles(event.dataTransfer)) return;
+    handledDropEventsRef.current.add(event);
+    event.preventDefault();
+    setIsDraggingOver(false);
+    if (!event.dataTransfer) return;
+
+    const imageFiles = getDroppedFiles(event.dataTransfer).filter((file) =>
+      file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|heic|avif)$/i.test(file.name),
+    );
+    if (imageFiles.length > 0) {
+      void handleAddFiles(imageFiles);
+    } else {
+      setImageError("Aucune image reconnue dans les fichiers déposés.");
+    }
+  }, [handleAddFiles]);
+
   const removePendingImage = (index: number) => {
     setPendingImages((prev) => prev.filter((_, i) => i !== index));
   };
@@ -217,16 +262,9 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
   // Window-level drag and drop so users can drop images anywhere into the chat window
   useEffect(() => {
     let dragCounter = 0;
-    const containsFiles = (transfer: DataTransfer | null) => Boolean(
-      transfer && (
-        Array.from(transfer.types).some((type) => type.toLowerCase() === "files" || type.toLowerCase().startsWith("public.file")) ||
-        Array.from(transfer.items || []).some((item) => item.kind === "file") ||
-        transfer.files.length > 0
-      ),
-    );
 
     const handleWindowDragEnter = (e: DragEvent) => {
-      if (containsFiles(e.dataTransfer)) {
+      if (containsDroppedFiles(e.dataTransfer)) {
         e.preventDefault();
         dragCounter++;
         setIsDraggingOver(true);
@@ -234,7 +272,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     };
 
     const handleWindowDragLeave = (e: DragEvent) => {
-      if (containsFiles(e.dataTransfer)) {
+      if (containsDroppedFiles(e.dataTransfer)) {
         e.preventDefault();
         dragCounter--;
         if (dragCounter <= 0) {
@@ -245,49 +283,25 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     };
 
     const handleWindowDragOver = (e: DragEvent) => {
-      if (containsFiles(e.dataTransfer)) {
+      if (containsDroppedFiles(e.dataTransfer)) {
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
         setIsDraggingOver(true);
       }
     };
 
-    const handleWindowDrop = (e: DragEvent) => {
-      if (containsFiles(e.dataTransfer)) {
-        e.preventDefault();
-        dragCounter = 0;
-        setIsDraggingOver(false);
-
-        const transfer = e.dataTransfer;
-        if (!transfer) return;
-        const droppedFiles = Array.from(transfer.files);
-        if (droppedFiles.length === 0) {
-          for (const item of Array.from(transfer.items)) {
-            if (item.kind === "file") {
-              const file = item.getAsFile();
-              if (file) droppedFiles.push(file);
-            }
-          }
-        }
-        const imageFiles = droppedFiles.filter((file) =>
-          file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg|heic|avif)$/i.test(file.name),
-        );
-        if (imageFiles.length > 0) handleAddFiles(imageFiles);
-      }
-    };
-
-    window.addEventListener("dragenter", handleWindowDragEnter);
-    window.addEventListener("dragleave", handleWindowDragLeave);
-    window.addEventListener("dragover", handleWindowDragOver);
-    window.addEventListener("drop", handleWindowDrop);
+    window.addEventListener("dragenter", handleWindowDragEnter, true);
+    window.addEventListener("dragleave", handleWindowDragLeave, true);
+    window.addEventListener("dragover", handleWindowDragOver, true);
+    window.addEventListener("drop", handleDroppedFiles, true);
 
     return () => {
-      window.removeEventListener("dragenter", handleWindowDragEnter);
-      window.removeEventListener("dragleave", handleWindowDragLeave);
-      window.removeEventListener("dragover", handleWindowDragOver);
-      window.removeEventListener("drop", handleWindowDrop);
+      window.removeEventListener("dragenter", handleWindowDragEnter, true);
+      window.removeEventListener("dragleave", handleWindowDragLeave, true);
+      window.removeEventListener("dragover", handleWindowDragOver, true);
+      window.removeEventListener("drop", handleDroppedFiles, true);
     };
-  }, [handleAddFiles]);
+  }, [handleDroppedFiles]);
 
   const hasContent = Boolean(prompt.trim() || pendingImages.length > 0);
   const isSteeringActive = effectiveIsTurnRunning && hasContent;
@@ -606,6 +620,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
 
       {/* Main Composer Box */}
       <div
+        onDrop={(event) => handleDroppedFiles(event.nativeEvent)}
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (!target.closest("button, input, textarea, select, [role='button'], [data-radix-collection-item], a")) {

@@ -73,29 +73,10 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
   const isPinnedToBottomRef = useRef<boolean>(true);
   const prevIsTurnRunningRef = useRef<boolean>(isTurnRunning);
 
-  // Track user manual expansion overrides per reasoning item index
-  const [userReasoningOverrides, setUserReasoningOverrides] = useState<Record<number, boolean>>({});
-  const prevLatestReasoningIdxRef = useRef<number>(-1);
+  // Track the user's choice for each thought block while it streams.
+  const [userReasoningOverrides, setUserReasoningOverrides] = useState<Record<string, boolean>>({});
   const isSwitchingSessionRef = useRef(false);
   const switchSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Find the index of the latest reasoning item in the timeline
-  const latestReasoningIndex = useMemo(() => {
-    for (let i = timeline.length - 1; i >= 0; i--) {
-      if (timeline[i]?.type === "reasoning") {
-        return i;
-      }
-    }
-    return -1;
-  }, [timeline]);
-
-  // When a new thought section begins, reset user overrides so previous collapses and new one expands
-  useEffect(() => {
-    if (latestReasoningIndex !== -1 && latestReasoningIndex !== prevLatestReasoningIdxRef.current) {
-      setUserReasoningOverrides({});
-      prevLatestReasoningIdxRef.current = latestReasoningIndex;
-    }
-  }, [latestReasoningIndex]);
 
   // Group timeline items into conversation turns for Summary Mode
   const turnGroups = useMemo<TurnGroup[]>(() => {
@@ -188,8 +169,6 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
 
   // Reset overrides and trigger session switch pinning when switching active agent / session
   useEffect(() => {
-    setUserReasoningOverrides({});
-    prevLatestReasoningIdxRef.current = -1;
     isSwitchingSessionRef.current = true;
     initialScrollDoneRef.current = null;
     isPinnedToBottomRef.current = true;
@@ -454,35 +433,39 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                   const texts: string[] = [];
                   let isStreaming = false;
                   let durationMs = 0;
-                  let containsLatest = false;
+                  let turnId: string | undefined;
                   for (let cursor = index; cursor < timeline.length; cursor++) {
                     const next = timeline[cursor];
                     if (next?.type === "user_message" || next?.type === "assistant_message") break;
                     if (next?.type !== "reasoning") continue;
+                    turnId ||= next.turnId;
                     if (next.text?.trim()) texts.push(next.text.trim());
                     if (next.isStreaming) isStreaming = true;
                     if (next.durationMs) durationMs += next.durationMs;
-                    if (cursor === latestReasoningIndex) containsLatest = true;
                   }
 
-                  const isExpanded =
-                    userReasoningOverrides[index] !== undefined
-                      ? userReasoningOverrides[index]
-                      : containsLatest || isStreaming;
+                  const boundary = timeline[start];
+                  const boundaryId = boundary?.type === "user_message"
+                    ? boundary.clientMessageId || boundary.messageId || boundary.timestamp
+                    : boundary?.type === "assistant_message"
+                      ? boundary.messageId || boundary.timestamp
+                      : undefined;
+                  const reasoningKey = `${activeAgentId || "session"}:${turnId || boundaryId || `index-${start}`}`;
+                  // Match Paseo: reasoning is collapsed by default. Streaming a
+                  // new thought must not override a user's collapse choice.
+                  const isExpanded = userReasoningOverrides[reasoningKey] ?? false;
 
                   return (
                     <ThinkingTrace
-                      key={`reasoning-${index}`}
+                      key={`reasoning-${reasoningKey}`}
                       text={texts.join("\n\n")}
                       isStreaming={isStreaming}
                       durationMs={durationMs || undefined}
                       isExpanded={isExpanded}
-                      onToggle={() =>
-                        setUserReasoningOverrides((prev) => ({
-                          ...prev,
-                          [index]: !isExpanded,
-                        }))
-                      }
+                      onToggle={() => {
+                        const nextExpanded = !isExpanded;
+                        setUserReasoningOverrides((prev) => ({ ...prev, [reasoningKey]: nextExpanded }));
+                      }}
                     />
                   );
                 }

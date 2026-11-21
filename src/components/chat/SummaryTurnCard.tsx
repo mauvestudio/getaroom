@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from "react";
+import React, { useRef, useEffect, useMemo, useState, useId } from "react";
 import {
   Terminal,
   FileCode,
@@ -11,6 +11,7 @@ import {
   AlertCircle,
   Sparkles,
   ListTodo,
+  ChevronDown,
 } from "lucide-react";
 import type {
   ToolCallTimelineItem,
@@ -25,6 +26,8 @@ import { AssistantMessage } from "./AssistantMessage";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TodoItemsList } from "./TodoBlock";
 import { PressButton } from "../ui/button";
+import { cn } from "../../lib/utils";
+import { LoadingDots } from "./LoadingDots";
 
 interface SummaryTurnCardProps {
   toolCalls: ToolCallTimelineItem[];
@@ -122,6 +125,8 @@ export function SummaryTurnCard({
 }: SummaryTurnCardProps) {
   const thoughtScrollRef = useRef<HTMLDivElement>(null);
   const [showAllTasksMobile, setShowAllTasksMobile] = useState(false);
+  const [thoughtOpen, setThoughtOpen] = useState(false);
+  const thoughtPanelId = useId();
 
   // Extract latest tasks list from todos
   const tasks = useMemo<TodoItem[]>(() => extractLatestTasks(todos), [todos]);
@@ -225,10 +230,10 @@ export function SummaryTurnCard({
 
   // Auto-scroll thought mini console when streaming
   useEffect(() => {
-    if (thoughtScrollRef.current) {
+    if (thoughtOpen && isStreamingReasoning && thoughtScrollRef.current) {
       thoughtScrollRef.current.scrollTop = thoughtScrollRef.current.scrollHeight;
     }
-  }, [combinedThoughtText, isStreamingReasoning]);
+  }, [combinedThoughtText, isStreamingReasoning, thoughtOpen]);
 
   return (
     <div className="my-3 space-y-3">
@@ -400,15 +405,22 @@ export function SummaryTurnCard({
         </div>
 
         {/* Right Column: Thought Log Mini Console */}
-        <div className="order-1 md:order-2 flex flex-col min-w-0 min-h-[156px] max-h-[190px] md:h-0 md:min-h-full md:max-h-none">
+        <div className="order-1 md:order-2 flex flex-col min-w-0 min-h-0 max-h-[190px] md:h-0 md:max-h-none">
           <div className="flex items-center justify-between pb-2 border-b border-border/50 text-[11px] font-medium text-foreground select-none shrink-0">
-            <div className="flex items-center gap-1.5">
-              <Brain className="w-3.5 h-3.5 text-blue-500" />
+            <PressButton
+              type="button"
+              onPress={() => setThoughtOpen((open) => !open)}
+              aria-expanded={thoughtOpen}
+              aria-controls={thoughtPanelId}
+              className="flex min-h-8 items-center gap-1.5 text-foreground touch-manipulation"
+            >
+              <Brain className="w-3.5 h-3.5 text-blue-500 pointer-events-none" />
               <span>Réflexion</span>
-            </div>
+              <ChevronDown className={cn("w-3 h-3 text-muted-foreground transition-transform pointer-events-none", thoughtOpen && "rotate-180")} />
+            </PressButton>
             {isStreamingReasoning ? (
-              <div className="flex items-center gap-1 text-[11px] text-amber-500 font-mono">
-                <Loader2 className="w-3 h-3 animate-spin" />
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-500 font-mono">
+                <LoadingDots />
                 <span>réflexion</span>
               </div>
             ) : totalReasoningDurationMs > 0 ? (
@@ -420,15 +432,17 @@ export function SummaryTurnCard({
 
           {/* Monospace Scrolling Console */}
           <div
+            id={thoughtPanelId}
             ref={thoughtScrollRef}
+            hidden={!thoughtOpen}
             className="mt-2 h-[108px] md:h-auto md:flex-1 min-h-0 overflow-y-auto overflow-x-hidden text-[13px] leading-6 text-muted-foreground select-text"
           >
             {combinedThoughtText ? (
               <MarkdownRenderer content={combinedThoughtText} variant="thought" />
             ) : isStreamingReasoning ? (
               <div className="flex items-center gap-2 italic text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin text-amber-500 shrink-0" />
-                <span>Réflexion en cours…</span>
+                <LoadingDots />
+                <span>Réflexion en cours</span>
               </div>
             ) : (
               <div className="italic text-muted-foreground/60">
