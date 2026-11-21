@@ -427,7 +427,11 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                   return <AssistantMessage key={index} item={item} />;
                 case "reasoning": {
                   let start = index;
-                  while (start > 0 && timeline[start - 1]?.type !== "user_message" && timeline[start - 1]?.type !== "assistant_message") start--;
+                  // Reasoning chunks and assistant status messages can alternate
+                  // during one Paseo turn. Keep them in one disclosure until the
+                  // next user prompt instead of rendering a new collapsed row for
+                  // every chunk.
+                  while (start > 0 && timeline[start - 1]?.type !== "user_message") start--;
                   if (timeline.slice(start, index).some((entry) => entry.type === "reasoning")) return null;
 
                   const texts: string[] = [];
@@ -436,7 +440,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                   let turnId: string | undefined;
                   for (let cursor = index; cursor < timeline.length; cursor++) {
                     const next = timeline[cursor];
-                    if (next?.type === "user_message" || next?.type === "assistant_message") break;
+                    if (next?.type === "user_message") break;
                     if (next?.type !== "reasoning") continue;
                     turnId ||= next.turnId;
                     if (next.text?.trim()) texts.push(next.text.trim());
@@ -447,9 +451,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                   const boundary = timeline[start];
                   const boundaryId = boundary?.type === "user_message"
                     ? boundary.clientMessageId || boundary.messageId || boundary.timestamp
-                    : boundary?.type === "assistant_message"
-                      ? boundary.messageId || boundary.timestamp
-                      : undefined;
+                    : undefined;
                   const reasoningKey = `${activeAgentId || "session"}:${turnId || boundaryId || `index-${start}`}`;
                   // Match Paseo: reasoning is collapsed by default. Streaming a
                   // new thought must not override a user's collapse choice.
