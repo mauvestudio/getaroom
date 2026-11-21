@@ -28,6 +28,7 @@ import { TodoItemsList } from "./TodoBlock";
 import { PressButton } from "../ui/button";
 import { cn } from "../../lib/utils";
 import { PaseoSyncedLoader } from "./PaseoSyncedLoader";
+import { PaseoShimmerRow } from "./PaseoShimmerRow";
 
 interface SummaryTurnCardProps {
   toolCalls: ToolCallTimelineItem[];
@@ -421,7 +422,7 @@ export function SummaryTurnCard({
             {isStreamingReasoning ? (
               <div className="flex items-center gap-1.5 text-[11px] text-amber-500 font-mono">
                 <PaseoSyncedLoader className="text-foreground" />
-                <span>réflexion</span>
+                <PaseoShimmerRow label="réflexion" labelClassName="text-[11px]" />
               </div>
             ) : totalReasoningDurationMs > 0 ? (
               <span className="text-[11px] font-mono text-muted-foreground font-normal">

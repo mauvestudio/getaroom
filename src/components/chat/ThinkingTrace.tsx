@@ -3,6 +3,7 @@ import { ChevronDown, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { PressButton } from "../ui/button";
 import { PaseoSyncedLoader } from "./PaseoSyncedLoader";
+import { PaseoShimmerRow } from "./PaseoShimmerRow";
 
 interface ThinkingTraceProps {
   text: string;
@@ -50,8 +51,19 @@ export function ThinkingTrace({
         {isStreaming ? <PaseoSyncedLoader className="text-foreground" /> : (
           <Sparkles className="w-3 h-3 text-muted-foreground/60 shrink-0" />
         )}
-        <span className="text-[12px]">{isStreaming ? "Réflexion" : "Raisonnement"}</span>
-        {duration && <span className="text-[11px] font-mono text-muted-foreground/50">{duration}</span>}
+        {isStreaming ? (
+          <PaseoShimmerRow
+            label="Réflexion"
+            secondaryLabel={duration ?? undefined}
+            labelClassName="text-[12px]"
+            secondaryClassName="text-[11px] font-mono text-muted-foreground/50"
+          />
+        ) : (
+          <>
+            <span className="text-[12px]">Raisonnement</span>
+            {duration && <span className="text-[11px] font-mono text-muted-foreground/50">{duration}</span>}
+          </>
+        )}
         <ChevronDown
           className={`w-3 h-3 text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
