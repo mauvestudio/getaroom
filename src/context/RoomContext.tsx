@@ -71,8 +71,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
       const provider = a.paseo.provider?.toLocaleLowerCase();
       return provider ? allAgents.filter((session) =>
         session.provider?.toLocaleLowerCase() === provider &&
-        (!a.paseo.hostId || session.hostId === a.paseo.hostId) &&
-        (!a.paseo.workspaceId || session.workspaceId === a.paseo.workspaceId),
+        (!a.paseo.hostId || session.hostId === a.paseo.hostId),
       ) : [];
     },
     [allAgents],

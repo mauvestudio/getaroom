@@ -360,6 +360,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [models, setModels] = useState<AgentModel[]>([]);
   const [providers, setProviders] = useState<PaseoProviderInfo[]>([]);
   const [selectedModel, setSelectedModelState] = useState<string>("plexus/gemini-3.7-flash");
+  const preferredNewSessionModelRef = useRef<string | null>(null);
 
   const [selectedMode, setSelectedModeState] = useState<string | null>(null);
 
@@ -1046,7 +1047,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       setProviders(parsedProviders);
       setModels(parsedModels);
-      setSelectedModelState((prev) => parsedModels.some((m) => m.id === prev) ? prev : (parsedModels[0]?.id ?? prev));
+      setSelectedModelState((prev) => {
+        const next = parsedModels.some((m) => m.id === prev) ? prev : (parsedModels[0]?.id ?? prev);
+        const preferred = preferredNewSessionModelRef.current;
+        if (!preferred || !parsedModels.some((m) => m.id === preferred)) {
+          preferredNewSessionModelRef.current = next;
+        }
+        return next;
+      });
 
     } catch (err) {
       console.warn("[WorkspaceProvider] refreshProviders error:", err);
@@ -1225,6 +1233,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeAgent) return;
 
+    const preferredModel = preferredNewSessionModelRef.current;
+    if (preferredModel && models.some((model) => model.id === preferredModel) && selectedModel !== preferredModel) {
+      setSelectedModelState(preferredModel);
+    }
+
     const availableModes = selectedModelDefinition?.availableModes ?? [];
     setSelectedModeState((previousMode) => {
       if (previousMode && availableModes.some((mode) => mode.id === previousMode)) {
@@ -1236,7 +1249,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         ? defaultMode
         : (availableModes[0]?.id ?? null);
     });
-  }, [activeAgent, selectedModelDefinition]);
+  }, [activeAgent, models, selectedModel, selectedModelDefinition]);
 
   // Listen to live agent stream and updates
   useEffect(() => {
@@ -1248,7 +1261,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       const targetAgentId = streamAgentId || activeAgentId;
       
       // Only process events for current active session
-      if (streamAgentId && activeAgentId && streamAgentId !== activeAgentId) {
+      // Never let a background agent's stream become the visible timeline when
+      // there is no selected session (for example, after switching projects).
+      if ((streamAgentId && streamAgentId !== activeAgentId) || (!streamAgentId && !activeAgentId)) {
         return;
       }
 
@@ -1744,8 +1759,21 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   }, [client, activeAgentId, resolvedWorkspaceId, refreshAgents, refreshWorkspaces, refreshProviders]);
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
-    newSessionDraftRef.current = false;
-    setIsNewSessionDraft(false);
+    const workspaceChanged = activeWorkspaceIdRef.current !== id;
+    if (workspaceChanged && activeAgentIdRef.current) {
+      // Keep the old session cached, but detach it from the newly selected
+      // workspace so its stream and model can never appear in a fresh session.
+      timelineCacheRef.current.set(activeAgentIdRef.current, timeline);
+      activeAgentIdRef.current = null;
+      setActiveAgentIdState(null);
+      setActiveTabTarget(null);
+      setTimeline([]);
+      setIsTimelineLoading(false);
+      setIsTurnRunning(false);
+      setCommands([]);
+    }
+    newSessionDraftRef.current = workspaceChanged;
+    setIsNewSessionDraft(workspaceChanged);
     activeWorkspaceIdRef.current = id;
     setActiveWorkspaceIdState(id);
     if (id) {
@@ -1753,7 +1781,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     } else {
       setAgents(allAgents);
     }
-  }, [allAgents]);
+  }, [allAgents, timeline]);
 
   // Deep-link de fenêtre: /?project=<id> active le projet correspondant.
   const projectParamAppliedRef = useRef(false);
@@ -2126,6 +2154,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     (model: string) => {
       const canonical = resolveCanonicalModelId(model, models);
       const previousModel = selectedModel;
+      preferredNewSessionModelRef.current = canonical;
       setSelectedModelState(canonical);
       const selectedDefinition = models.find((item) => item.id === canonical);
       if (!activeAgentId || (activeAgent && selectedDefinition?.agentProvider !== activeAgent.provider)) return;
@@ -2235,7 +2264,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         options.newSession.workspaceId,
         images,
         options.newSession.provider,
-        selectedModel || options.newSession.model,
+        options.newSession.model || selectedModel,
         options.newSession.hostId,
         options.newSession.reasoning,
       );

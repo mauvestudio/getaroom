@@ -39,15 +39,15 @@ function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: 
   useEffect(() => {
     // WorkspaceContext setters change identity as live events update the agent and
     // timeline. Reapplying setActiveAgentId on every update clears the timeline.
-    const nextAgentId = active?.id ?? null;
-    if (syncedAgentId.current !== nextAgentId) {
-      syncedAgentId.current = nextAgentId;
-      setActiveAgentId(nextAgentId);
-    }
     const nextWorkspaceId = active?.workspaceId || agent.paseo.workspaceId || null;
     if (nextWorkspaceId && syncedWorkspaceId.current !== nextWorkspaceId) {
       syncedWorkspaceId.current = nextWorkspaceId;
       setActiveWorkspaceId(nextWorkspaceId);
+    }
+    const nextAgentId = active?.id ?? null;
+    if (syncedAgentId.current !== nextAgentId) {
+      syncedAgentId.current = nextAgentId;
+      setActiveAgentId(nextAgentId);
     }
     // The active session already publishes its model and reasoning via Paseo.
     // newSessionOptions below carries the defaults for a new session.
