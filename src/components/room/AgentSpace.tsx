@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, FileText, History, LayoutGrid } from "lucide-react";
-import { usePaseo } from "../../context/PaseoContext";
-import type { AgentSnapshot } from "../../lib/paseo/types";
 import { useRoom } from "../../context/RoomContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { useSessionView } from "../../context/SessionViewContext";
@@ -22,6 +20,8 @@ import { HermesStatusBadge } from "../ui/HermesStatusBadge";
 import { SessionGitControls } from "../layout/SessionGitControls";
 import { TheRoomCanvas } from "./TheRoomCanvas";
 import { VisualHistoryButton } from "../chat/VisualHistoryButton";
+import { useAgentHistory } from "../../lib/useAgentHistory";
+import type { HistorySession } from "../../lib/paseo/agent-history";
 import { ErrorBoundary } from "../ui/error-boundary";
 
 function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: string | null }) {
@@ -73,11 +73,22 @@ function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: 
 
 export function AgentSpace({ agent }: { agent: PublicAgent }) {
   const { agents, statusOf, openHome, threadId, setThreadId, sessionsOf, approvalsOf } = useRoom();
-  const { models, refreshAgents } = useWorkspace();
-  const { client, hosts } = usePaseo();
-  const [history, setHistory] = useState<AgentSnapshot[] | null>(null);
-  const [historyStatus, setHistoryStatus] = useState("");
-  const [historyBusy, setHistoryBusy] = useState(false);
+  const { models, resumeArchivedSession } = useWorkspace();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [resumingId, setResumingId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState("");
+  const history = useAgentHistory({ enabled: historyOpen, hostId: agent.paseo.hostId });
+  // Mêmes critères que les fils actifs de l'agent (sessionsOf), limités aux archivés.
+  const archived = useMemo(() => {
+    const provider = agent.paseo.provider?.toLocaleLowerCase();
+    return history.sessions.filter((session) => session.archivedAt && session.provider?.toLocaleLowerCase() === provider
+      && (!agent.paseo.workspaceId || session.workspaceId === agent.paseo.workspaceId));
+  }, [history.sessions, agent.paseo.provider, agent.paseo.workspaceId]);
+  const { hasMore, isLoading: historyLoading, isLoadingMore, loadMore } = history;
+  // Les archivés de cet agent peuvent se trouver au-delà de la première page.
+  useEffect(() => {
+    if (historyOpen && archived.length === 0 && hasMore && !historyLoading && !isLoadingMore) void loadMore();
+  }, [historyOpen, archived.length, hasMore, historyLoading, isLoadingMore, loadMore]);
   const { viewMode } = useSessionView();
   const { setMode } = useMode();
   const status = statusOf(agent);
@@ -106,39 +117,17 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   }, [draft, sessions, agent.id, setThreadId]);
   const newThread = () => { draftBaselineIds.current = new Set(sessions.map((session) => session.id)); setDraft(true); setThreadId(agent.id, null); };
   const selectThread = (id: string) => { draftBaselineIds.current = null; setDraft(false); setThreadId(agent.id, id); };
-  const loadHistory = async () => {
-    if (history !== null) { setHistory(null); return; }
-    setHistory([]);
-    setHistoryBusy(true);
-    setHistoryStatus("Chargement de l’historique…");
+  const resume = async (session: HistorySession) => {
+    setResumingId(session.id);
+    setResumeError("");
     try {
-      const result = await client.fetchAgents({ scope: "all", hostId: agent.paseo.hostId });
-      const matching: AgentSnapshot[] = (result.entries ?? [])
-        .map((entry: { agent?: AgentSnapshot } | AgentSnapshot) => "agent" in entry ? entry.agent : entry)
-        .filter((session: AgentSnapshot) => session?.archivedAt &&
-          session.provider === agent.paseo.provider &&
-          (!agent.paseo.hostId || session.hostId === agent.paseo.hostId));
-      setHistory(matching.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-      setHistoryStatus(matching.length ? "" : "Aucun fil archivé pour cet agent.");
-    } catch {
-      setHistoryStatus("Impossible de charger l’historique.");
-    } finally {
-      setHistoryBusy(false);
-    }
-  };
-  const resume = async (session: AgentSnapshot) => {
-    if (!session.persistence) return;
-    setHistoryBusy(true);
-    setHistoryStatus("");
-    try {
-      const restored = await client.resumeAgent(session.hostId || "local", session.persistence);
-      await refreshAgents();
-      selectThread(restored.id);
-      setHistory(null);
+      await resumeArchivedSession(session);
+      selectThread(session.id);
+      setHistoryOpen(false);
     } catch (error) {
-      setHistoryStatus(error instanceof Error ? error.message : "Impossible de reprendre ce fil.");
+      setResumeError(error instanceof Error ? error.message : "Impossible de reprendre ce fil.");
     } finally {
-      setHistoryBusy(false);
+      setResumingId(null);
     }
   };
   return <div className="flex min-h-0 flex-1 flex-col">
@@ -154,17 +143,21 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
         <SessionGitControls room session={activeSession} />
         <SessionViewSwitch activeAgents={activeAgents} />
         <VisualHistoryButton className="h-8 w-8" />
-        <PressButton onPress={() => void loadHistory()} disabled={historyBusy} aria-expanded={history !== null} aria-label="Historique des fils" title="Historique des fils" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"><History className="h-4 w-4" /></PressButton>
+        <PressButton onPress={() => setHistoryOpen((value) => !value)} aria-expanded={historyOpen} aria-label="Historique des fils" title="Historique des fils" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"><History className="h-4 w-4" /></PressButton>
         <PressButton onPress={() => setDocsOpen((v) => !v)} aria-pressed={docsOpen} aria-label="Documents" title="Documents" className={cn("flex h-8 w-8 items-center justify-center rounded-md", docsOpen ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}><FileText className="h-4 w-4 pointer-events-none" /></PressButton>
         <PressButton onPress={() => setMode("openspace")} aria-label="Ouvrir Open Space" title="Ouvrir Open Space" className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"><LayoutGrid className="h-4 w-4 pointer-events-none" /></PressButton>
       </div>
     </header>
-    {history !== null && <section aria-label="Fils archivés" className="max-h-48 shrink-0 overflow-auto border-b border-border p-3">
-      {historyStatus && <p role="status" className="text-xs text-muted-foreground">{historyStatus}</p>}
-      {history.map((session) => <div key={session.id} className="flex items-center justify-between gap-2 border-b border-border py-2 text-xs">
-        <span className="min-w-0 truncate">{session.title || session.name || "Fil sans titre"} <span className="text-muted-foreground">· {hosts.find((host) => host.id === session.hostId)?.name || session.hostId}</span></span>
-        <PressButton disabled={!session.persistence || historyBusy} onPress={() => void resume(session)} className="rounded-lg border border-border px-3 py-2 disabled:opacity-50">Reprendre</PressButton>
+    {historyOpen && <section aria-label="Fils archivés" className="max-h-48 shrink-0 overflow-auto border-b border-border p-3">
+      {(resumeError || history.error) && <p role="alert" className="pb-1 text-xs text-destructive">{resumeError || history.error}</p>}
+      {history.hostErrors.map((entry) => <p key={entry.hostId} role="status" className="pb-1 text-[10px] text-muted-foreground">{`${entry.hostLabel} · Impossible de charger l’historique`}</p>)}
+      {(historyLoading || isLoadingMore) && archived.length === 0 && <p role="status" className="text-xs text-muted-foreground">Chargement de l’historique…</p>}
+      {history.loaded && !historyLoading && !isLoadingMore && !hasMore && !history.error && history.hostErrors.length === 0 && archived.length === 0 && <p role="status" className="text-xs text-muted-foreground">Aucun fil archivé pour cet agent.</p>}
+      {archived.map((session) => <div key={session.id} className="flex items-center justify-between gap-2 border-b border-border py-2 text-xs">
+        <span className="min-w-0 truncate">{session.title || session.name || "Fil sans titre"} <span className="text-muted-foreground">· {session.hostLabel}</span></span>
+        <PressButton disabled={resumingId !== null} onPress={() => void resume(session)} className="rounded-lg border border-border px-3 py-2 disabled:opacity-50">{resumingId === session.id ? "Reprise…" : "Reprendre"}</PressButton>
       </div>)}
+      {hasMore && archived.length > 0 && <PressButton disabled={isLoadingMore} onPress={() => void loadMore()} className="mt-1 w-full rounded-md py-1.5 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-50">Charger plus</PressButton>}
     </section>}
     <div className="flex min-h-0 flex-1">
       <ThreadRail layout="rail" items={items} activeId={activeId} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />

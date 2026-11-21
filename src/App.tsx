@@ -9,6 +9,7 @@ import { ChatTimeline } from "./components/chat/ChatTimeline";
 import { TerminalView } from "./components/terminal/TerminalView";
 import { WorkspacePanel } from "./components/drawers/WorkspacePanel";
 import { PromptComposer } from "./components/composer/PromptComposer";
+import { ArchivedSessionCallout } from "./components/chat/ArchivedSessionCallout";
 import { BottomDrawer } from "./components/drawers/BottomDrawer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ErrorBoundary } from "./components/ui/error-boundary";
@@ -74,6 +75,7 @@ function WorkspaceMain() {
   const {
     activeTab,
     workspaceTabs,
+    activeAgent,
     createTerminalTab,
     closeTab,
     openChangesTab,
@@ -183,7 +185,7 @@ function WorkspaceMain() {
               <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                 <div className={`flex-1 flex-col min-h-0 overflow-hidden ${viewMode === "terminal" ? "hidden" : "flex"}`}>
                   <ChatTimeline onSelectPrompt={handleSelectPrompt} />
-                  <PromptComposer initialValue={composerPrompt} />
+                  {activeAgent?.archivedAt ? <ArchivedSessionCallout /> : <PromptComposer initialValue={composerPrompt} />}
                 </div>
                 {viewMode === "terminal" && (
                   terminalTabs[0] ? (

@@ -55,3 +55,6 @@ data/
 .agentsroom/fork-context-*.txt
 .agentsroom/transfer-context-*.txt
 .agentsroom/handoff-context-*.txt
+
+# Documents de travail privés (jamais publiés)
+docs/design-reference/

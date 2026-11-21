@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { SessionStatusIcon } from "../ui/SessionStatusIcon";
+import { SessionHistoryPanel } from "./SessionHistoryPanel";
 import { aggregateVisual, sessionVisual } from "../../lib/session-visual";
 import { GetaroomMark } from "../ui/GetaroomMark";
 import { useWorkspace } from "../../context/WorkspaceContext";
@@ -42,8 +43,7 @@ import {
   LifeBuoy,
   BookOpen,
   Bug,
-  Keyboard,
-} from "lucide-react";
+  Keyboard, History } from "lucide-react";
 import {
   getProjectKey,
   parseStoredProjectOrder,
@@ -995,6 +995,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
     sessionVisual(session, pendingAgentIds.has(session.id));
 
   const { mode, setMode } = useMode();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [groupFilter, setGroupFilterState] = useState<GroupFilter>(() => {
     try {
       const v = localStorage.getItem("mauve-group-filter");
@@ -1321,23 +1322,40 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
 
       {/* Navigation compacte : Open Space, Dev et Room */}
       <div data-tauri-drag-region className="shrink-0 border-b border-border/40 px-3 py-2">
-        <ModeSwitch onNavigate={onCloseMobile} />
-        {onOpenSearch && (
+        <ModeSwitch onNavigate={() => { setHistoryOpen(false); onCloseMobile?.(); }} />
+        <div className="mt-2 flex gap-1.5">
+          {onOpenSearch && (
+            <PressButton
+              type="button"
+              onPress={() => { onCloseMobile?.(); onOpenSearch(); }}
+              aria-label="Recherche"
+              title="Recherche (⌘K)"
+              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+            >
+              <Search className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
+              <span className="min-w-0 flex-1 truncate">Recherche</span>
+              <kbd className="shrink-0 font-mono text-[10px] text-muted-foreground/70">⌘K</kbd>
+            </PressButton>
+          )}
           <PressButton
             type="button"
-            onPress={() => { onCloseMobile?.(); onOpenSearch(); }}
-            aria-label="Recherche"
-            title="Recherche (⌘K)"
-            className="mt-2 flex h-8 w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+            onPress={() => setHistoryOpen((value) => !value)}
+            aria-pressed={historyOpen}
+            title="Historique des sessions"
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] transition-colors",
+              historyOpen ? "border-ring/60 bg-ring/10 text-foreground" : "border-border/60 bg-muted/30 text-muted-foreground hover:border-foreground/25 hover:text-foreground",
+            )}
           >
-            <Search className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
-            <span className="min-w-0 flex-1 truncate">Recherche</span>
-            <kbd className="shrink-0 font-mono text-[10px] text-muted-foreground/70">⌘K</kbd>
+            <History className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
+            Historique
           </PressButton>
-        )}
+        </div>
       </div>
 
-      {mode === "openspace" && (
+      {historyOpen && <SessionHistoryPanel onNavigate={() => { setMode("studio"); onCloseMobile?.(); }} />}
+
+      {!historyOpen && mode === "openspace" && (
         <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 px-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1361,7 +1379,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
         </ScrollArea>
       )}
 
-      {(mode === "room" || mode === "the-room") && (
+      {!historyOpen && (mode === "room" || mode === "the-room") && (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Agents Room</div>
           <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2 pb-2">
@@ -1371,7 +1389,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       )}
 
       {/* Filtre d'univers (Studio Dev) */}
-      {mode === "studio" && (
+      {!historyOpen && mode === "studio" && (
         <div className="flex gap-1 px-3 py-2 border-b border-border/40 shrink-0" role="tablist" aria-label="Univers">
           {(["all", "mauve", "perso"] as GroupFilter[]).map((g) => (
             <PressButton
@@ -1391,7 +1409,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       )}
 
       {/* Tree list with Shadcn ScrollArea */}
-      {mode === "studio" && (
+      {!historyOpen && mode === "studio" && (
       <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
         {/* Recent Sessions */}
         {recentSessions.length > 0 && (

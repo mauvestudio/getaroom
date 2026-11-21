@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { LOCAL_HOST, normalizeSavedHost, type PaseoHost } from "../lib/paseo/hosts";
 import { appDataFile, readJson, writeJson } from "./app-data";
-import { guardRoutes } from "./request-guard";
+import { guardRoutes, isLocalClient } from "./request-guard";
 
 const hostFile = appDataFile("hosts.json");
 const oldGetaroomHostFile = path.join(homedir(), ".getaroom", "hosts.json");
@@ -72,6 +72,30 @@ async function writeHosts(hosts: PaseoHost[]): Promise<void> {
   await writeJson(hostFile, hosts);
 }
 
+/** Hôte sans aucun secret (jeton, identifiants dans l'URL). */
+export function publicHost(host: PaseoHost): PaseoHost {
+  let url = host.url;
+  try { const parsed = new URL(url); parsed.username = ""; parsed.password = ""; url = parsed.toString(); } catch {}
+  const { token: _token, ...safe } = host;
+  return { ...safe, url };
+}
+
+/** Un client distant reçoit des hôtes expurgés : son enregistrement ne doit pas effacer les secrets. */
+export function restoreHostSecrets(incoming: unknown, existing: readonly PaseoHost[]): unknown {
+  if (!Array.isArray(incoming)) return incoming;
+  const byId = new Map(existing.map((host) => [host.id, host]));
+  return incoming.map((value) => {
+    const candidate = normalizeSavedHost(value);
+    const stored = candidate ? byId.get(candidate.id) : undefined;
+    if (!candidate || !stored) return value;
+    return {
+      ...candidate,
+      token: candidate.token ?? stored.token,
+      url: candidate.url === publicHost(stored).url ? stored.url : candidate.url,
+    };
+  });
+}
+
 export async function getRemoteHosts(): Promise<PaseoHost[]> {
   return readHosts();
 }
@@ -92,17 +116,21 @@ export async function saveRemoteHosts(value: unknown): Promise<PaseoHost[]> {
 
 export const paseoHostsApi = guardRoutes({
   "/api/paseo/hosts": {
-    async GET() {
+    async GET(req: Request, server?: Bun.Server<unknown>) {
       try {
-        return Response.json([LOCAL_HOST, ...await readHosts()], { headers: { "cache-control": "no-store" } });
+        const hosts = await readHosts();
+        const visible = isLocalClient(req, server) ? hosts : hosts.map(publicHost);
+        return Response.json([LOCAL_HOST, ...visible], { headers: { "cache-control": "no-store" } });
       } catch {
         return Response.json([LOCAL_HOST], { headers: { "cache-control": "no-store" } });
       }
     },
-    async POST(req: Request) {
+    async POST(req: Request, server?: Bun.Server<unknown>) {
       try {
-        const saved = await saveRemoteHosts(await req.json());
-        return Response.json([LOCAL_HOST, ...saved], { headers: { "cache-control": "no-store" } });
+        const local = isLocalClient(req, server);
+        const body = await req.json();
+        const saved = await saveRemoteHosts(local ? body : restoreHostSecrets(body, await readHosts()));
+        return Response.json([LOCAL_HOST, ...(local ? saved : saved.map(publicHost))], { headers: { "cache-control": "no-store" } });
       } catch (error) {
         return Response.json({ error: error instanceof Error ? error.message : "Configuration d’hôtes invalide." }, { status: 400 });
       }

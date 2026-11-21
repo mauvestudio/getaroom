@@ -3,11 +3,11 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createConnection } from "node:net";
 import { appDataFile, fileExists, readJson, writeJson } from "./app-data";
-import { getRemoteHosts, saveRemoteHosts } from "./paseo-hosts";
+import { getRemoteHosts, saveRemoteHosts, publicHost } from "./paseo-hosts";
 import type { PaseoHost } from "../lib/paseo/hosts";
 import { getRoomProfiles, saveRoomProfiles } from "./room-api";
 import type { AgentConfig } from "../config/agents";
-import { guardRoutes } from "./request-guard";
+import { guardRoutes, isLocalClient } from "./request-guard";
 
 const preferencesFile = appDataFile("preferences.json");
 const onboardingFile = appDataFile("onboarding.json");
@@ -34,12 +34,7 @@ export function withoutSecrets(preferences: Preferences): Preferences {
   return Object.fromEntries(Object.entries(preferences).filter(([key]) => !/(token|secret|password|api.?key|paseo-hosts|sync-path)/i.test(key)));
 }
 
-export function publicHost(host: PaseoHost): PaseoHost {
-  let url = host.url;
-  try { const parsed = new URL(url); parsed.username = ""; parsed.password = ""; url = parsed.toString(); } catch {}
-  const { token: _token, ...safe } = host;
-  return { ...safe, url };
-}
+export { publicHost };
 
 async function portableProfile(includeTokens = false): Promise<PortableProfile> {
   const hosts = await getRemoteHosts();
@@ -140,7 +135,8 @@ export const profileApi = guardRoutes({
     async POST() { await writeJson(onboardingFile, { complete: true }); return json({ ok: true }); },
   },
   "/api/profile/export": {
-    async GET(req: Request) { return json(await portableProfile(new URL(req.url).searchParams.get("includeTokens") === "true")); },
+    // Les jetons ne sortent jamais vers un client distant.
+    async GET(req: Request, server?: Bun.Server<unknown>) { return json(await portableProfile(new URL(req.url).searchParams.get("includeTokens") === "true" && isLocalClient(req, server))); },
   },
   "/api/profile/import": {
     async POST(req: Request) {
@@ -157,11 +153,11 @@ export const profileApi = guardRoutes({
         return json(validateProfile(JSON.parse(await readFile(file, "utf8"))));
       } catch (error) { return failed(error); }
     },
-    async POST(req: Request) {
+    async POST(req: Request, server?: Bun.Server<unknown>) {
       try {
         const { path: value, includeTokens = false } = await req.json() as { path?: string; includeTokens?: boolean };
         const file = checkedSyncPath(value);
-        await writeJson(file, await portableProfile(includeTokens));
+        await writeJson(file, await portableProfile(includeTokens === true && isLocalClient(req, server)));
         return json({ ok: true, path: file });
       } catch (error) { return failed(error); }
     },

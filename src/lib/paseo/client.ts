@@ -644,6 +644,16 @@ export class PaseoClient {
     return res;
   }
 
+  /** Historique complet du daemon (sessions actives et archivées), paginé et triable. */
+  public async fetchAgentHistory(options?: Parameters<DaemonClient["fetchAgentHistory"]>[0]) {
+    return this.daemon.fetchAgentHistory(options);
+  }
+
+  /** Désarchive et recharge une session en gardant son id (bouton « Désarchiver » de Paseo). */
+  public async refreshAgent(agentId: string): Promise<void> {
+    await this.daemon.refreshAgent(agentId);
+  }
+
   public async openProject(cwd: string): Promise<{ workspace: WorkspaceItem }> {
     const res = await this.daemon.openProject(cwd);
     return res as any;

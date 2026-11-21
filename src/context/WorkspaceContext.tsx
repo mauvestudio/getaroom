@@ -123,6 +123,10 @@ interface WorkspaceContextType {
   isNewSessionDraft: boolean;
   setActiveAgentId: (id: string | null) => void;
   refreshAgents: () => Promise<void>;
+  /** Ouvre une session de l'historique (lecture seule si elle est archivée). */
+  openHistorySession: (session: AgentSnapshot) => void;
+  /** Désarchive une session en gardant son id, puis l'active (sémantique `refreshAgent` de Paseo). */
+  resumeArchivedSession: (session: Pick<AgentSnapshot, "id" | "workspaceId">) => Promise<void>;
 
   workspaceTabs: WorkspaceTabItem[];
   activeTab: WorkspaceTabItem | null;
@@ -437,10 +441,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [isChangesTabOpen, setIsChangesTabOpen] = useState<boolean>(false);
 
+  // Session ouverte depuis l'historique : volontairement hors de la liste active.
+  const [historySession, setHistorySession] = useState<AgentSnapshot | null>(null);
+  const historySessionRef = useRef<AgentSnapshot | null>(null);
+  const allAgentsRef = useRef<AgentSnapshot[]>([]);
+  allAgentsRef.current = allAgents;
+  const assignHistorySession = useCallback((session: AgentSnapshot | null) => {
+    historySessionRef.current = session;
+    setHistorySession(session);
+  }, []);
+
   const activeAgent =
     allAgents.find((a) => a.id === activeAgentId) ||
     agents.find((a) => a.id === activeAgentId) ||
-    null;
+    (historySession?.id === activeAgentId ? historySession : null);
 
   // Resolve active workspace strictly: from active agent if present, or activeWorkspaceId
   const resolvedWorkspaceId = activeAgent?.workspaceId || activeWorkspaceId;
@@ -463,9 +477,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     const tabs: WorkspaceTabItem[] = [];
 
     // ONLY agents that belong to resolvedWorkspaceId, stably ordered by creation time
-    const workspaceAgents = allAgents
-      .filter((a) => a.workspaceId === resolvedWorkspaceId)
-      .slice()
+    const openedFromHistory = historySession && historySession.workspaceId === resolvedWorkspaceId
+      && !allAgents.some((a) => a.id === historySession.id) ? [historySession] : [];
+    const workspaceAgents = [...allAgents.filter((a) => a.workspaceId === resolvedWorkspaceId), ...openedFromHistory]
       .sort(compareAgentSnapshotsByCreation);
 
     for (const a of workspaceAgents) {
@@ -511,7 +525,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
 
     return tabs;
-  }, [resolvedWorkspaceId, allAgents, terminals, activeWorkspace, isChangesTabOpen, activeTabTarget, gitStatus]);
+  }, [resolvedWorkspaceId, allAgents, historySession, terminals, activeWorkspace, isChangesTabOpen, activeTabTarget, gitStatus]);
 
   const activeTab = useMemo<WorkspaceTabItem | null>(() => {
     if (isNewSessionDraft) return null;
@@ -702,10 +716,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       if (res && Array.isArray(res.entries)) {
         for (const entry of res.entries) {
-          list.push(normalizeAgentSnapshot(entry));
+          const agent = normalizeAgentSnapshot(entry);
+          if (!agent.archivedAt) list.push(agent);
         }
       } else if (res && Array.isArray(res.agents)) {
-        list.push(...res.agents.map(normalizeAgentSnapshot));
+        list.push(...res.agents.map(normalizeAgentSnapshot).filter((agent: AgentSnapshot) => !agent.archivedAt));
       }
 
       list.sort(compareAgentSnapshotsByCreation);
@@ -735,6 +750,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       });
 
       const currentActiveId = preferredAgentId || activeAgentIdRef.current;
+      // Une session d'historique ouverte n'est pas dans la liste active : ne pas l'éjecter.
+      const viewed = historySessionRef.current;
+      if (viewed && viewed.id === currentActiveId) {
+        if (!list.some((a) => a.id === viewed.id)) return;
+        assignHistorySession(null);
+      }
       const activeCandidates = curWsId ? filtered : list;
       if (activeCandidates.length > 0) {
         if (newSessionDraftRef.current && !preferredAgentId) return;
@@ -755,7 +776,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn("[WorkspaceProvider] fetchAgents error:", err);
     }
-  }, [client]);
+  }, [client, assignHistorySession]);
 
   // Refresh timeline for active agent
   const refreshTimeline = useCallback(
@@ -1541,8 +1562,31 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       );
     });
 
+    // Une session archivée ou retirée quitte la liste active. Si elle est à l'écran,
+    // elle y reste en lecture seule, avec le bandeau « Reprendre ».
+    const dropFromActiveList = (agentId: string, snapshot?: AgentSnapshot) => {
+      const known = snapshot ?? allAgentsRef.current.find((a) => a.id === agentId);
+      const without = (list: AgentSnapshot[]) => list.some((a) => a.id === agentId) ? list.filter((a) => a.id !== agentId) : list;
+      setAgents(without);
+      setAllAgents(without);
+      setPendingPermissions((prev) => prev.some((p) => p.agentId === agentId) ? prev.filter((p) => p.agentId !== agentId) : prev);
+      if (activeAgentIdRef.current === agentId && known) {
+        assignHistorySession({ ...known, archivedAt: known.archivedAt ?? new Date().toISOString() });
+        setIsTurnRunning(false);
+      }
+    };
+
     const unsubAgentUpdate = client.on("agent_update", (payload: any) => {
+      if (payload?.kind === "remove") {
+        if (typeof payload.agentId === "string") dropFromActiveList(payload.agentId);
+        return;
+      }
       const agent = normalizeAgentSnapshot(payload.agent || payload);
+      if (agent?.id && agent.archivedAt) {
+        dropFromActiveList(agent.id, agent);
+        return;
+      }
+      if (agent?.id && historySessionRef.current?.id === agent.id) assignHistorySession(null);
       if (agent && agent.id) {
         const updateList = (prev: AgentSnapshot[]) => {
           const idx = prev.findIndex((a) => a.id === agent.id);
@@ -1756,7 +1800,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       unsubRemoteHostReady();
       unsubScriptStatus();
     };
-  }, [client, activeAgentId, resolvedWorkspaceId, refreshAgents, refreshWorkspaces, refreshProviders]);
+  }, [client, activeAgentId, resolvedWorkspaceId, refreshAgents, refreshWorkspaces, refreshProviders, assignHistorySession]);
 
   const setActiveWorkspaceId = useCallback((id: string | null) => {
     const workspaceChanged = activeWorkspaceIdRef.current !== id;
@@ -1764,6 +1808,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // Keep the old session cached, but detach it from the newly selected
       // workspace so its stream and model can never appear in a fresh session.
       timelineCacheRef.current.set(activeAgentIdRef.current, timeline);
+      assignHistorySession(null);
       activeAgentIdRef.current = null;
       setActiveAgentIdState(null);
       setActiveTabTarget(null);
@@ -1781,7 +1826,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     } else {
       setAgents(allAgents);
     }
-  }, [allAgents, timeline]);
+  }, [allAgents, timeline, assignHistorySession]);
 
   // Deep-link de fenêtre: /?project=<id> active le projet correspondant.
   const projectParamAppliedRef = useRef(false);
@@ -1839,6 +1884,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     // Live ROOM updates can re-render their conversation without changing the
     // selected session. Re-selecting the same id used to clear the timeline.
     if (activeAgentIdRef.current === id) return;
+    if (historySessionRef.current && historySessionRef.current.id !== id) assignHistorySession(null);
     newSessionDraftRef.current = false;
     setIsNewSessionDraft(false);
     if (id && activeAgentIdRef.current && activeAgentIdRef.current !== id) {
@@ -1863,7 +1909,42 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setIsTurnRunning(false);
       setCommands([]);
     }
-  }, [timeline]);
+  }, [timeline, assignHistorySession]);
+
+  const openHistorySession = useCallback((session: AgentSnapshot) => {
+    const normalized = normalizeAgentSnapshot(session);
+    const live = allAgentsRef.current.some((a) => a.id === normalized.id);
+    assignHistorySession(live ? null : normalized);
+    if (normalized.workspaceId && activeWorkspaceIdRef.current !== normalized.workspaceId) {
+      // Pas de setActiveWorkspaceId ici : il détacherait la session qu'on est en train d'ouvrir.
+      activeWorkspaceIdRef.current = normalized.workspaceId;
+      setActiveWorkspaceIdState(normalized.workspaceId);
+      setAgents(allAgentsRef.current.filter((a) => a.workspaceId === normalized.workspaceId));
+    }
+    newSessionDraftRef.current = false;
+    setIsNewSessionDraft(false);
+    setActiveAgentId(normalized.id);
+    setActiveTabTarget({ kind: "agent", targetId: normalized.id });
+  }, [assignHistorySession, setActiveAgentId]);
+
+  const resumeArchivedSession = useCallback(async ({ id, workspaceId }: Pick<AgentSnapshot, "id" | "workspaceId">) => {
+    await client.refreshAgent(id);
+    timelineCacheRef.current.delete(id);
+    if (workspaceId) {
+      activeWorkspaceIdRef.current = workspaceId;
+      setActiveWorkspaceIdState(workspaceId);
+    }
+    newSessionDraftRef.current = false;
+    setIsNewSessionDraft(false);
+    if (historySessionRef.current?.id !== id) assignHistorySession(null);
+    await refreshAgents(id);
+    if (historySessionRef.current?.id === id) assignHistorySession(null);
+    activeAgentIdRef.current = id;
+    setActiveAgentIdState(id);
+    setActiveTabTarget({ kind: "agent", targetId: id });
+    client.setAgentTimelineSubscription([id]).catch(console.warn);
+    await refreshTimeline(id);
+  }, [client, refreshAgents, refreshTimeline, assignHistorySession]);
 
   const closeTab = useCallback(
     async (tab: WorkspaceTabItem): Promise<void> => {
@@ -1880,6 +1961,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
               setActiveAgentId(null);
             }
           }
+          return;
+        }
+
+        // Session d'historique : on ferme seulement la vue, elle est déjà archivée.
+        if (tab.kind === "agent" && historySessionRef.current?.id === tab.targetId) {
+          const nextAgent = workspaceTabs.find((t) => t.kind === "agent" && t.targetId !== tab.targetId);
+          assignHistorySession(null);
+          setActiveAgentId(nextAgent?.targetId ?? null);
           return;
         }
 
@@ -1943,7 +2032,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         console.warn("[WorkspaceProvider] closeTab error:", err);
       }
     },
-    [client, refreshAgents, refreshTerminals, activeTab, workspaceTabs, setActiveTab, setActiveAgentId],
+    [client, refreshAgents, refreshTerminals, activeTab, workspaceTabs, setActiveTab, setActiveAgentId, assignHistorySession],
   );
 
   const openChangesTab = useCallback(() => {
@@ -2928,6 +3017,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         isNewSessionDraft,
         setActiveAgentId,
         refreshAgents,
+        openHistorySession,
+        resumeArchivedSession,
 
         workspaceTabs,
         activeTab,

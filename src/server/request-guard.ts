@@ -53,6 +53,18 @@ export function isTrustedRequest(req: Request): boolean {
   return !!host && parsed.host.toLowerCase() === host.toLowerCase();
 }
 
+const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/**
+ * Vrai seulement pour un appel direct depuis cette machine. Derrière un reverse proxy,
+ * l'adresse vue est celle du proxy : tout en-tête de transfert compte donc comme distant.
+ */
+export function isLocalClient(req: Request, server?: { requestIP?: (req: Request) => { address: string } | null }): boolean {
+  if (["forwarded", "x-forwarded-for", "x-real-ip"].some((name) => req.headers.has(name))) return false;
+  const address = server?.requestIP?.(req)?.address;
+  return !!address && LOOPBACK_ADDRESSES.has(address);
+}
+
 export function forbiddenResponse(): Response {
   return Response.json(
     { error: "Requête inter-origine refusée par le relais Get a Room." },

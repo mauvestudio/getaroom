@@ -8,7 +8,7 @@ const REMOTE_ID_SEPARATOR = "::";
 const AGENT_ID_METHODS = new Set([
   "fetchAgentTimeline", "listProviderSubagents", "listCommands", "cancelAgent", "archiveAgent",
   "updateAgent", "setAgentModel", "setAgentThinking", "setAgentMode", "respondToPermission",
-  "setAgentTimelineSubscription", "fetchProviderSubagentTimeline", "sendAgentMessage", "clearAgentAttention",
+  "setAgentTimelineSubscription", "fetchProviderSubagentTimeline", "sendAgentMessage", "clearAgentAttention", "refreshAgent",
 ]);
 
 function splitRemoteId(value: unknown): { hostId: string; id: string } | null {
@@ -19,7 +19,7 @@ function splitRemoteId(value: unknown): { hostId: string; id: string } | null {
     : null;
 }
 
-function namespaceAgent(host: PaseoHost, value: any): any {
+export function namespaceAgent(host: PaseoHost, value: any): any {
   if (!value || typeof value !== "object") return value;
   return {
     ...value,
