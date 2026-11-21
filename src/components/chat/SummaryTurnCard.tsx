@@ -27,7 +27,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TodoItemsList } from "./TodoBlock";
 import { PressButton } from "../ui/button";
 import { cn } from "../../lib/utils";
-import { LoadingDots } from "./LoadingDots";
+import { PaseoSyncedLoader } from "./PaseoSyncedLoader";
 
 interface SummaryTurnCardProps {
   toolCalls: ToolCallTimelineItem[];
@@ -420,7 +420,7 @@ export function SummaryTurnCard({
             </PressButton>
             {isStreamingReasoning ? (
               <div className="flex items-center gap-1.5 text-[11px] text-amber-500 font-mono">
-                <LoadingDots />
+                <PaseoSyncedLoader className="text-foreground" />
                 <span>réflexion</span>
               </div>
             ) : totalReasoningDurationMs > 0 ? (
@@ -441,7 +441,7 @@ export function SummaryTurnCard({
               <MarkdownRenderer content={combinedThoughtText} variant="thought" />
             ) : isStreamingReasoning ? (
               <div className="flex items-center gap-2 italic text-muted-foreground">
-                <LoadingDots />
+                <PaseoSyncedLoader className="text-foreground" />
                 <span>Réflexion en cours</span>
               </div>
             ) : (

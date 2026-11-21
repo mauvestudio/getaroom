@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { PressButton } from "../ui/button";
-import { LoadingDots } from "./LoadingDots";
+import { PaseoSyncedLoader } from "./PaseoSyncedLoader";
 
 interface ThinkingTraceProps {
   text: string;
@@ -47,7 +47,7 @@ export function ThinkingTrace({
         onPress={handleToggle}
         className="group/think flex items-center gap-2 py-1.5 min-h-[44px] sm:min-h-[32px] text-muted-foreground hover:text-foreground cursor-pointer select-none transition-colors touch-manipulation"
       >
-        {isStreaming ? <LoadingDots /> : (
+        {isStreaming ? <PaseoSyncedLoader className="text-foreground" /> : (
           <Sparkles className="w-3 h-3 text-muted-foreground/60 shrink-0" />
         )}
         <span className="text-[12px]">{isStreaming ? "Réflexion" : "Raisonnement"}</span>
@@ -66,7 +66,7 @@ export function ThinkingTrace({
             <MarkdownRenderer content={text} variant="thought" />
           ) : isStreaming ? (
             <div className="flex items-center gap-2 text-muted-foreground italic">
-              <LoadingDots />
+              <PaseoSyncedLoader className="text-foreground" />
               <span>Réflexion</span>
             </div>
           ) : (
