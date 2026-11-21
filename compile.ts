@@ -232,7 +232,8 @@ const imageResponse = (asset: string, contentType: string) =>
 const args = process.argv.slice(2);
 void getRemoteHosts().catch(() => {});
 let port = Number(process.env.PORT || 5555);
-let hostname = process.env.HOST || "0.0.0.0";
+// Sans authentification propre : local par défaut, l'exposition réseau doit être explicite.
+let hostname = process.env.HOST || "127.0.0.1";
 
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
@@ -255,7 +256,7 @@ for (let i = 0; i < args.length; i++) {
     console.log("");
     console.log("Options:");
     console.log("  -p, --port <number>  Port to listen on (default: 5555, env: PORT)");
-    console.log("  -h, --host <string>  Host address to bind (default: 0.0.0.0, env: HOST)");
+    console.log("  -h, --host <string>  Host address to bind (default: 127.0.0.1, env: HOST)");
     console.log("      --help           Show this help message");
     process.exit(0);
   }
@@ -451,6 +452,9 @@ const server = serve<ProxySocketData>({
   development: false,
 });
 
+if (!["127.0.0.1", "localhost", "::1"].includes(hostname)) {
+  console.warn(\`⚠️  Relais exposé sur \${hostname} sans authentification : toute machine du réseau peut piloter Paseo. Place-le derrière un VPN ou un reverse proxy authentifié.\`);
+}
 console.log(\`🚀 Get a Room relay running at \${server.url}\`);
 console.log(\`🔌 Paseo WebSocket proxy active at /api/paseo/ws -> \${getUpstreamWsUrl()}\`);
 

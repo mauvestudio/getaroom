@@ -6,7 +6,7 @@ const rawArgs = process.argv.slice(2);
 let destDir = path.join(homedir(), ".local/bin");
 let binName = "amble";
 let port = process.env.PORT || "5555";
-let host = process.env.HOST || "0.0.0.0";
+let host = process.env.HOST || "127.0.0.1";
 let shouldCompile = true;
 let shouldRestart = true;
 
@@ -45,7 +45,7 @@ for (let i = 0; i < rawArgs.length; i++) {
     console.log("  -d, --dest <dir>      Destination directory (default: ~/.local/bin)");
     console.log("  -n, --name <name>     Target binary name (default: amble)");
     console.log("  -p, --port <number>   Port if installing new service (default: 5555)");
-    console.log("  -h, --host <string>   Host if installing new service (default: 0.0.0.0)");
+    console.log("  -h, --host <string>   Host if installing new service (default: 127.0.0.1)");
     console.log("      --no-compile      Skip compiling and deploy existing dist/amble");
     console.log("      --no-restart      Skip restarting the service/binary");
     console.log("      --help            Show this help message");

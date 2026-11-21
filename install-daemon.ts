@@ -50,7 +50,7 @@ async function checkLinuxSystemd(): Promise<{ ok: boolean; reason?: string }> {
 // 2. Parse CLI arguments
 const rawArgs = process.argv.slice(2);
 let port = process.env.PORT || "5555";
-let host = process.env.HOST || "0.0.0.0";
+let host = process.env.HOST || "127.0.0.1";
 let binPath = path.join(homedir(), ".local/bin", "amble");
 let shouldStart = true;
 let shouldEnable = true;
@@ -86,7 +86,7 @@ for (let i = 0; i < rawArgs.length; i++) {
     console.log("");
     console.log("Options:");
     console.log("  -p, --port <number>  Port for Amble service (default: 5555, env: PORT)");
-    console.log("  -h, --host <string>  Host address to bind (default: 0.0.0.0, env: HOST)");
+    console.log("  -h, --host <string>  Host address to bind (default: 127.0.0.1, env: HOST)");
     console.log("      --bin <path>     Path to amble binary (default: ~/.local/bin/amble)");
     console.log("      --no-start       Do not start/restart the service after installing");
     console.log("      --no-enable      Do not enable the service at login/boot");
@@ -210,7 +210,7 @@ console.log("");
 console.log("✨ Amble daemon setup complete!");
 console.log(`   Service File: ${serviceFile}`);
 console.log(`   Binary:       ${binPath}`);
-console.log(`   Listen:       http://0.0.0.0:${port} (all interfaces)`);
+console.log(`   Listen:       http://${host}:${port}${host === "0.0.0.0" ? " (all interfaces, no authentication)" : ""}`);
 console.log(`   URL:          http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
 console.log("");
 console.log("Useful commands:");

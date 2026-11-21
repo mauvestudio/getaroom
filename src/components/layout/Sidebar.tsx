@@ -1252,10 +1252,11 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
 
   const handleSelectSession = (sessionId: string, workspaceId?: string) => {
     setMode("studio");
-    setActiveAgentId(sessionId);
+    // Le projet d'abord : changer de projet détache la session active, donc aussi celle qu'on vient de choisir.
     if (workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
+    setActiveAgentId(sessionId);
     if (onCloseMobile) {
       onCloseMobile();
     }

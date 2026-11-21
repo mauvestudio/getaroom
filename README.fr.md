@@ -4,7 +4,7 @@
 
 ![Cover getaroom : un espace pour les projets de code et les agents IA persistants](docs/images/getaroom-cover.jpg)
 
-![Open Space de getaroom avec les agents ROOM et les projets de développement](docs/images/openspace-screenshot.png)
+![Open Space de getaroom avec les agents ROOM et les projets de développement](docs/images/open-space.png)
 
 **Plus qu’une grille de terminaux.** Là où les lanceurs CLI gèrent des onglets locaux éphémères, **getaroom** est un client macOS natif pour le [protocole Paseo (ACP)](https://github.com/getpaseo/paseo). Il réunit deux univers dans un même espace :
 
