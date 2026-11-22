@@ -145,7 +145,7 @@ describe("SummaryTurnCard with tasks", () => {
 
     // Verify layout classes for matching height
     expect(html).toContain("items-stretch");
-    expect(html).toContain("md:h-0 md:min-h-full");
+    expect(html).toContain("md:h-0 md:max-h-none");
     expect(html).toContain("min-h-0");
   });
 

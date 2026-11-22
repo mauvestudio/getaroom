@@ -19,6 +19,10 @@ function splitRemoteId(value: unknown): { hostId: string; id: string } | null {
     : null;
 }
 
+export function getAgentHostId(agentId: string): string {
+  return splitRemoteId(agentId)?.hostId ?? "local";
+}
+
 export function namespaceAgent(host: PaseoHost, value: any): any {
   if (!value || typeof value !== "object") return value;
   return {

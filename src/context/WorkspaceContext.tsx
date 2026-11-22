@@ -49,6 +49,7 @@ import {
 import { chooseDefaultWorkspace, resolveWorkspaceTarget } from "../lib/workspace-target";
 import { resolveWorkspacePath } from "../lib/resolve-workspace-path";
 import { appendReasoningTimelineItem } from "../lib/paseo/timeline";
+import { getAgentHostId } from "../lib/paseo/multi-host-client";
 
 export type ActiveTabKind = "agent" | "terminal" | "changes";
 
@@ -338,7 +339,8 @@ function normalizeAgentSnapshot(entryOrAgent: any): AgentSnapshot {
 }
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  const { client, connectionState } = usePaseo();
+  const { client, connectionState, hostStates, getClientForHost, getHostState } = usePaseo();
+  const connectedHostsKey = Object.keys(hostStates).filter((id) => hostStates[id] === "connected").sort().join("|");
 
   const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -355,6 +357,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [activeAgentId, setActiveAgentIdState] = useState<string | null>(null);
   const activeAgentIdRef = useRef<string | null>(null);
   activeAgentIdRef.current = activeAgentId;
+  const activeAgentConnection = activeAgentId ? getHostState(getAgentHostId(activeAgentId)) : undefined;
+  const initialAgentSelectionRef = useRef(true);
+  const agentListRequestRef = useRef(0);
   const [isNewSessionDraft, setIsNewSessionDraft] = useState(false);
   const newSessionDraftRef = useRef(false);
 
@@ -587,7 +592,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (activeAgentId) {
       activeAgentIdRef.current = activeAgentId;
-      if (timeline.length > 0) {
+      if (timeline.some((item) => item.type !== "error")) {
         timelineCacheRef.current.set(activeAgentId, timeline);
       }
     }
@@ -595,7 +600,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   // Refresh workspaces
   const refreshWorkspaces = useCallback(() => {
-    if (client.getState() !== "connected") return Promise.resolve();
+    if (getClientForHost("local")?.getState() !== "connected") return Promise.resolve();
     if (workspaceRefreshPromiseRef.current) return workspaceRefreshPromiseRef.current;
 
     const refreshPromise = (async () => {
@@ -604,6 +609,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         client.fetchWorkspaces().catch(() => null),
         client.listProjects().catch(() => null),
       ]);
+      if (!res && !prjRes) return;
       const list: WorkspaceItem[] = [];
       const projectMap = new Map<string, ProjectItem>();
 
@@ -705,13 +711,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     workspaceRefreshPromiseRef.current = refreshPromise;
     return refreshPromise;
-  }, [client]);
+  }, [client, getClientForHost]);
 
   // Refresh agents for active workspace
   const refreshAgents = useCallback(async (preferredAgentId?: string) => {
     if (client.getState() !== "connected") return;
+    const request = ++agentListRequestRef.current;
     try {
       const res = await client.fetchAgents({ scope: "active" });
+      if (request !== agentListRequestRef.current) return;
       const list: AgentSnapshot[] = [];
 
       if (res && Array.isArray(res.entries)) {
@@ -756,9 +764,27 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         if (!list.some((a) => a.id === viewed.id)) return;
         assignHistorySession(null);
       }
+      if (newSessionDraftRef.current && !preferredAgentId) return;
+      if (!currentActiveId && initialAgentSelectionRef.current && list.length > 0
+        && !new URLSearchParams(window.location.search).has("project")) {
+        const local = list.filter((agent) => getAgentHostId(agent.id) === "local");
+        const candidates = local.length > 0 ? local : list;
+        const recent = candidates.reduce((latest, agent) =>
+          (agent.updatedAt || agent.createdAt) >= (latest.updatedAt || latest.createdAt) ? agent : latest,
+        );
+        initialAgentSelectionRef.current = false;
+        const workspaceId = recent.workspaceId || curWsId;
+        activeWorkspaceIdRef.current = workspaceId;
+        setActiveWorkspaceIdState(workspaceId);
+        setAgents(workspaceId ? list.filter((agent) => agent.workspaceId === workspaceId) : list);
+        activeAgentIdRef.current = recent.id;
+        setActiveAgentIdState(recent.id);
+        return;
+      }
+      if (currentActiveId && getClientForHost(getAgentHostId(currentActiveId))?.getState() !== "connected") return;
+      if (!preferredAgentId && currentActiveId && list.some((agent) => agent.id === currentActiveId)) return;
       const activeCandidates = curWsId ? filtered : list;
       if (activeCandidates.length > 0) {
-        if (newSessionDraftRef.current && !preferredAgentId) return;
         if (!currentActiveId || !list.some((a) => a.id === currentActiveId)) {
           const fallbackId = activeCandidates[0]!.id;
           setActiveAgentIdState(fallbackId);
@@ -776,17 +802,14 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn("[WorkspaceProvider] fetchAgents error:", err);
     }
-  }, [client, assignHistorySession]);
+  }, [client, assignHistorySession, getClientForHost]);
 
   // Refresh timeline for active agent
   const refreshTimeline = useCallback(
     async (targetAgentId?: string) => {
       const id = targetAgentId || activeAgentIdRef.current;
-      if (!id || client.getState() !== "connected") {
-        setTimeline([]);
-        setIsTimelineLoading(false);
-        return;
-      }
+      if (!id || id !== activeAgentIdRef.current
+        || getClientForHost(getAgentHostId(id))?.getState() !== "connected") return;
       activeTimelineFetchRef.current = id;
       const requestRevision = timelineRevisionRef.current;
 
@@ -812,7 +835,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           }),
         ]);
         if (
-          activeTimelineFetchRef.current !== id ||
+          activeTimelineFetchRef.current !== id || activeAgentIdRef.current !== id ||
           timelineRevisionRef.current !== requestRevision
         ) {
           return;
@@ -958,8 +981,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           setTimeline([]);
         }
       } catch (err) {
-        if (activeTimelineFetchRef.current !== id) return;
+        if (activeTimelineFetchRef.current !== id || activeAgentIdRef.current !== id) return;
         console.warn("[WorkspaceProvider] fetchAgentTimeline error:", err);
+        if (timelineCacheRef.current.has(id)) return;
         setTimeline([
           {
             type: "error",
@@ -968,30 +992,30 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         ]);
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
-        if (activeTimelineFetchRef.current === id) {
+        if (activeTimelineFetchRef.current === id && activeAgentIdRef.current === id) {
           setIsTimelineLoading(false);
         }
       }
     },
-    [client],
+    [client, getClientForHost],
   );
 
   // Refresh slash commands for active agent
   const refreshCommands = useCallback(
     async (targetAgentId?: string) => {
       const id = targetAgentId || activeAgentIdRef.current;
-      if (!id || client.getState() !== "connected") {
+      if (!id || getClientForHost(getAgentHostId(id))?.getState() !== "connected") {
         setCommands([]);
         return;
       }
       try {
         const list = await client.listCommands(id);
-        setCommands(list);
+        if (activeAgentIdRef.current === id) setCommands(list);
       } catch (err) {
         console.warn("[WorkspaceProvider] listCommands error:", err);
       }
     },
-    [client],
+    [client, getClientForHost],
   );
 
   // Refresh providers & models
@@ -1174,40 +1198,48 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [connectionState, refreshWorkspaces, refreshTerminals, refreshProviders, refreshScripts]);
 
+  useEffect(() => {
+    if (!connectedHostsKey) return;
+    let cancelled = false;
+    void (async () => {
+      if (connectionState === "connected") await refreshWorkspaces();
+      if (!cancelled) await refreshAgents();
+    })();
+    return () => { cancelled = true; };
+  }, [connectedHostsKey, connectionState, refreshWorkspaces, refreshAgents]);
+
   // When active workspace changes
   useEffect(() => {
     if (resolvedWorkspaceId && connectionState === "connected") {
-      refreshAgents();
       refreshGitStatus();
       refreshTerminals(resolvedWorkspaceId);
       refreshScripts(resolvedWorkspaceId);
     }
-  }, [resolvedWorkspaceId, connectionState, refreshAgents, refreshGitStatus, refreshTerminals, refreshScripts]);
+  }, [resolvedWorkspaceId, connectionState, refreshGitStatus, refreshTerminals, refreshScripts]);
 
   // When active agent changes
   useEffect(() => {
-    if (activeAgentId && connectionState === "connected") {
+    if (activeAgentId && activeAgentConnection === "connected") {
       refreshTimeline(activeAgentId);
       refreshCommands(activeAgentId);
       client.setAgentTimelineSubscription([activeAgentId]).catch(console.warn);
     } else if (activeAgentId) {
-      setIsTimelineLoading(false);
       if (!timelineCacheRef.current.has(activeAgentId)) {
-        setTimeline([{
-          type: "error",
-          message: "Impossible de charger l’historique : le daemon Paseo local est hors ligne.",
-        } as TimelineItem]);
+        const isConnecting = activeAgentConnection === "connecting" || activeAgentConnection === "reconnecting";
+        setIsTimelineLoading(isConnecting);
+        if (!isConnecting) {
+          setTimeline([{ type: "error", message: "L’hôte Paseo de cette session est hors ligne." }]);
+        }
       }
     } else if (!activeAgentId) {
+      activeTimelineFetchRef.current = null;
       setTimeline([]);
       setIsTimelineLoading(false);
       setIsTurnRunning(false);
       setCommands([]);
-      if (connectionState === "connected") {
-        client.setAgentTimelineSubscription([]).catch(console.warn);
-      }
+      client.setAgentTimelineSubscription([]).catch(console.warn);
     }
-  }, [activeAgentId, connectionState, refreshTimeline, refreshCommands, client]);
+  }, [activeAgentId, activeAgentConnection, refreshTimeline, refreshCommands, client]);
 
   useEffect(() => {
     if (activeAgent) {
@@ -1776,7 +1808,6 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
     const unsubRemoteHostReady = client.on("remote_host_ready", () => {
       void refreshProviders();
-      void refreshAgents();
     });
 
     const unsubScriptStatus = client.on("script_status_update", (payload: any) => {

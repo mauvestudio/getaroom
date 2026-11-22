@@ -9,6 +9,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import type { ProjectItem, WorkspaceItem, AgentSnapshot } from "../../lib/paseo/types";
 import type { PaseoClient } from "../../lib/paseo/client";
 import { cn } from "../../lib/utils";
+import { LOCAL_HOST_ID } from "../../lib/paseo/hosts";
 import {
   isProjectEmpty,
   resolveProjectCollapsed,
@@ -32,8 +33,8 @@ import {
   Sparkles,
   Pencil,
   Clock,
-  GripVertical,
   Settings,
+  Server,
   MoreVertical,
   SquareArrowOutUpRight,
   FolderOpen,
@@ -43,16 +44,16 @@ import {
   LifeBuoy,
   BookOpen,
   Bug,
-  Keyboard, History } from "lucide-react";
+  Keyboard, History, Bot, Network } from "lucide-react";
 import {
   getProjectKey,
   parseStoredProjectOrder,
   sortProjectsByOrder,
   reorderProjectKeys,
   getRecentSessions,
-  getSessionContextLabel,
 } from "./sidebar-order-utils";
 import { slugify } from "@getpaseo/protocol/branch-slug";
+import { countRunningDelegates, getParentAgentId } from "../../lib/subagent-helpers";
 import {
   Dialog,
   DialogContent,
@@ -976,7 +977,7 @@ function UpdateCheckButton() {
 }
 
 export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch }: SidebarProps) {
-  const { client } = usePaseo();
+  const { client, hosts } = usePaseo();
   const {
     projects,
     workspaces,
@@ -993,6 +994,55 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
   const pendingAgentIds = useMemo(() => new Set(pendingPermissions.map((entry) => entry.agentId)), [pendingPermissions]);
   const visualOf = (session: { id: string; status?: string; requiresAttention?: boolean; attentionReason?: string | null }) =>
     sessionVisual(session, pendingAgentIds.has(session.id));
+
+  // Sous-agents : agent délégué par un autre agent, et parent qui en a en cours.
+  const runningDelegates = useMemo(() => countRunningDelegates(allAgents), [allAgents]);
+
+  const renderSessionTitle = (session: AgentSnapshot) => {
+    const isDelegated = getParentAgentId(session) !== null;
+    const childCount = runningDelegates.get(session.id) ?? 0;
+    const hostId = session.hostId;
+    const remoteHost = hostId && hostId !== LOCAL_HOST_ID
+      ? hosts.find((host) => host.id === hostId)?.name || "distant"
+      : undefined;
+    const serverLabel = remoteHost ? `Serveur : ${remoteHost}` : undefined;
+
+    return (
+      <div className="flex min-w-0 items-center gap-2 text-sm font-normal">
+        <SessionStatusIcon
+          state={visualOf(session)}
+          className="[&>span]:size-2"
+          idle={
+            <span aria-hidden="true" className="flex size-3.5 shrink-0 items-center justify-center">
+              <span className="size-2 rounded-full bg-muted-foreground/50" />
+            </span>
+          }
+        />
+        {isDelegated && (
+          <span role="img" aria-label="Sous-agent" title="Sous-agent" className="shrink-0 text-muted-foreground">
+            <Bot aria-hidden="true" className="size-3 pointer-events-none" />
+          </span>
+        )}
+        <span className="truncate">{session.title || "Session sans titre"}</span>
+        {childCount > 0 && (
+          <span
+            role="img"
+            aria-label={`${childCount} sous-agent${childCount > 1 ? "s" : ""} en cours`}
+            title={`${childCount} sous-agent${childCount > 1 ? "s" : ""} en cours`}
+            className="flex shrink-0 items-center gap-0.5 text-muted-foreground"
+          >
+            <Network aria-hidden="true" className="size-3 pointer-events-none" />
+            {childCount > 1 && <span className="font-mono text-[9px]">{childCount}</span>}
+          </span>
+        )}
+        {serverLabel && (
+          <span role="img" aria-label={serverLabel} title={serverLabel} className="shrink-0 text-muted-foreground">
+            <Server aria-hidden="true" className="size-3 pointer-events-none" />
+          </span>
+        )}
+      </div>
+    );
+  };
 
   const { mode, setMode } = useMode();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1354,7 +1404,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
         </div>
       </div>
 
-      {historyOpen && <SessionHistoryPanel onNavigate={() => { setMode("studio"); onCloseMobile?.(); }} />}
+      <SessionHistoryPanel visible={historyOpen} onNavigate={() => { setMode("studio"); onCloseMobile?.(); }} />
 
       {!historyOpen && mode === "openspace" && (
         <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
@@ -1411,72 +1461,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
 
       {/* Tree list with Shadcn ScrollArea */}
       {!historyOpen && mode === "studio" && (
-      <ScrollArea className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:h-0 [&::-webkit-scrollbar]:w-0">
-        {/* Recent Sessions */}
-        {recentSessions.length > 0 && (
-          <div className="mb-3 space-y-1">
-            <div className="flex items-center justify-between px-1.5 py-0.5">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Clock className="w-3 h-3 text-muted-foreground/80" />
-                Récentes
-              </span>
-            </div>
-            <div className="space-y-0.5">
-              {recentSessions.map((session) => {
-                const isActive = session.id === activeAgentId;
-                const elapsed = formatElapsed(session.updatedAt || session.createdAt);
-                const contextLabel = getSessionContextLabel(session, workspaces, projects);
-
-                return (
-                  <div key={session.id} className="px-0.5">
-                    <PressTarget
-                      onPress={() => handleSelectSession(session.id, session.workspaceId)}
-                      className={cn(
-                        "group flex flex-col gap-0.5 px-2 py-1.5 rounded-md text-xs cursor-pointer transition-all",
-                        isActive
-                          ? "bg-muted/70 text-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-1.5 min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0 truncate">
-                          <SessionStatusIcon state={visualOf(session)} idle={<Sparkles className="w-3 h-3 text-muted-foreground/50 shrink-0" />} />
-                          <span className="truncate font-medium text-foreground">
-                            {session.title || "Session sans titre"}
-                          </span>
-                        </div>
-                        {elapsed && (
-                          <span
-                            className={cn(
-                              "text-[10px] font-mono shrink-0 ml-1",
-                              isActive
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-muted-foreground/70",
-                            )}
-                          >
-                            {elapsed}
-                          </span>
-                        )}
-                      </div>
-                      {contextLabel && (
-                        <div className="pl-3 text-[10px] font-mono text-muted-foreground/60 truncate">
-                          {contextLabel}
-                        </div>
-                      )}
-                    </PressTarget>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="border-b border-border/40 pt-1.5" />
-            <div className="flex items-center justify-between px-1.5 pt-1">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Projets
-              </span>
-            </div>
-          </div>
-        )}
-
+      <ScrollArea hideScrollbar className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
         <div className="space-y-2.5">
           {projectTree.map(({ project, directWorkspace, directSessions, worktrees }, index) => {
             const projectKey = getProjectKey(project);
@@ -1527,15 +1512,6 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                   className={cn("group flex items-center justify-between rounded-md px-1.5 py-1 text-foreground transition-colors", isProjectSelected ? "bg-muted/60 font-semibold" : "hover:bg-muted/40")}
                 >
                   <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <div
-                      className="p-0.5 text-muted-foreground/30 group-hover:text-muted-foreground/80 hover:!text-foreground cursor-grab active:cursor-grabbing shrink-0 transition-colors"
-                      title="Glisser pour réordonner le projet"
-                      aria-label={`Glisser pour réordonner ${project.name}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <GripVertical className="w-3.5 h-3.5 pointer-events-none" />
-                    </div>
-
                     <PressButton
                       type="button"
                       draggable={false}
@@ -1544,6 +1520,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                         toggleProjectCollapse(project.id, isProjectCollapsed);
                       }}
                       className="p-1 sm:p-0.5 rounded text-muted-foreground/60 hover:text-foreground cursor-pointer shrink-0 touch-manipulation"
+                      aria-expanded={!isProjectCollapsed}
                       title={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
                       aria-label={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
                     >
@@ -1571,7 +1548,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
 
                   <div
                     className={`flex items-center gap-0.5 shrink-0 ${
-                      isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                      isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                     } transition-opacity`}
                   >
                     <PressButton
@@ -1627,12 +1604,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 min-w-0 truncate">
-                              <SessionStatusIcon state={visualOf(session)} />
-                              <span className="truncate">
-                                {session.title || "Session sans titre"}
-                              </span>
-                            </div>
+                            {renderSessionTitle(session)}
                             {elapsed && (
                               <span
                                 className={`text-[10px] font-mono shrink-0 ml-1 ${
@@ -1817,12 +1789,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                           : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                                       }`}
                                     >
-                                      <div className="flex items-center gap-1.5 min-w-0 truncate">
-                                        <SessionStatusIcon state={visualOf(session)} />
-                                        <span className="truncate">
-                                          {session.title || "Session sans titre"}
-                                        </span>
-                                      </div>
+                                      {renderSessionTitle(session)}
                                       {elapsed && (
                                         <span
                                           className={`text-[10px] font-mono shrink-0 ml-1 ${

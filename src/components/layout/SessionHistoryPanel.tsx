@@ -77,7 +77,7 @@ function HistoryRow({ session, active, pending, showHost, resuming, onOpen, onRe
 }
 
 /** Vue Historique de la sidebar : mêmes données et mêmes sections que l'écran Historique de Paseo. */
-export function SessionHistoryPanel({ onNavigate }: { onNavigate?: () => void }) {
+export function SessionHistoryPanel({ visible, onNavigate }: { visible: boolean; onNavigate?: () => void }) {
   const { hosts } = usePaseo();
   const { activeAgentId, pendingPermissions, openHistorySession, resumeArchivedSession } = useWorkspace();
   const [input, setInput] = useState("");
@@ -123,7 +123,7 @@ export function SessionHistoryPanel({ onNavigate }: { onNavigate?: () => void })
   };
 
   return (
-    <section aria-label="Historique" className="flex min-h-0 flex-1 flex-col">
+    <section aria-label="Historique" className={visible ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
       <div className="shrink-0 space-y-1.5 border-b border-border/40 px-3 py-2">
         {history.isSearchSupported && (
           <div className="relative">

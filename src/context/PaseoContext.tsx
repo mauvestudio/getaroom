@@ -131,11 +131,11 @@ export function PaseoProvider({ children }: { children: React.ReactNode }) {
       };
       update(connection.getState());
       unsubscribers.push(connection.on("state_change", update));
-      connection.connect().catch(() => {});
       unsubscribers.push(connection.on("server_info", (info) => {
         if (host.local) setServerInfo(info);
         else fleet.emit("remote_host_ready", { hostId: host.id });
       }));
+      connection.connect().catch(() => {});
     }
     return () => {
       for (const unsubscribe of unsubscribers) unsubscribe();

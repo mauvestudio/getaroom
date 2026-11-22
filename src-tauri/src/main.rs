@@ -1,5 +1,5 @@
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::thread;
@@ -15,6 +15,48 @@ const PREFERRED_PORT: u16 = 5555;
 struct RelayChild(Mutex<Option<CommandChild>>);
 
 static EXITING: AtomicBool = AtomicBool::new(false);
+
+/// Start Paseo's own background supervisor with its existing local profile.
+/// The daemon is shared with other clients and outlives this window.
+#[cfg(target_os = "macos")]
+fn start_local_paseo_if_needed() {
+    if ["PASEO_DAEMON_WS_URL", "PASEO_DAEMON_URL", "PASEO_WS_URL", "PASEO_URL", "PASEO_PORT"]
+        .iter()
+        .any(|key| std::env::var(key).is_ok_and(|value| !value.trim().is_empty()))
+    {
+        return;
+    }
+    // Veille : si Paseo.app est quitté, son daemon (enfant du superviseur de l'app) s'arrête avec lui.
+    // On le relance dès que le port 6767 ne répond plus, pour que getaroom reste connecté.
+    thread::spawn(|| {
+        let address: SocketAddr = ([127, 0, 0, 1], 6767).into();
+        let mut failures = 0u32;
+        while !EXITING.load(Ordering::SeqCst) {
+            if TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok() {
+                failures = 0;
+                thread::sleep(Duration::from_secs(3));
+                continue;
+            }
+            let bundled_cli = "/Applications/Paseo.app/Contents/Resources/bin/paseo";
+            let cli = if std::path::Path::new(bundled_cli).is_file() { bundled_cli } else { "paseo" };
+            match Command::new(cli)
+                .args(["daemon", "start", "--timeout", "15"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+            {
+                Ok(status) if status.success() => failures = 0,
+                result => {
+                    failures = failures.saturating_add(1);
+                    eprintln!("[getaroom] Impossible de démarrer le daemon Paseo : {result:?}");
+                }
+            }
+            // Recul progressif (3 s → 30 s) si le démarrage échoue en boucle.
+            thread::sleep(Duration::from_secs((3 * (1 + u64::from(failures))).min(30)));
+        }
+    });
+}
 
 fn pick_port() -> Result<u16, String> {
     for candidate in [PREFERRED_PORT, 0] {
@@ -69,6 +111,8 @@ pub fn run() {
             }
 
             let port = pick_port().unwrap_or_else(|error| fatal(&error));
+            #[cfg(target_os = "macos")]
+            start_local_paseo_if_needed();
             let (mut events, child) = app
                 .shell()
                 .sidecar("getaroom-relay")?

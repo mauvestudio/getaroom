@@ -523,3 +523,26 @@ export function resolveAndDeduplicateActions(
 
   return cleaned;
 }
+
+/** Label posé par Paseo sur un agent délégué (créé par un autre agent). */
+export const PARENT_AGENT_ID_LABEL = "paseo.parent-agent-id";
+
+export function getParentAgentId(agent: { labels?: Record<string, unknown> | null }): string | null {
+  const value = agent.labels?.[PARENT_AGENT_ID_LABEL];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Nombre de sous-agents en cours d'exécution, par identifiant d'agent parent. */
+export function countRunningDelegates(
+  agents: Array<{ status?: string; hostId?: string; labels?: Record<string, unknown> | null }>,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const agent of agents) {
+    const parent = getParentAgentId(agent);
+    if (!parent || agent.status !== "running") continue;
+    // Les ids d'agents distants sont préfixés par l'hôte ; le label, lui, porte l'id brut.
+    const key = agent.hostId && agent.hostId !== "local" ? `${agent.hostId}::${parent}` : parent;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
