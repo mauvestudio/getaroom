@@ -19,6 +19,12 @@ const COPY = {
     labels: { session: "Session", weekly: "Hebdomadaire", monthly: "Mensuel", code_review: "Révision de code", credits: "Crédits", monthly_credits: "Crédits mensuels" },
     status: { error: "Erreur", unavailable: "Indisponible" },
     loading: "Chargement de l’utilisation...",
+    title: "Utilisation du forfait",
+    refreshAll: "Tout actualiser",
+    empty: "Aucune donnée d’utilisation",
+    errorTitle: "Impossible de charger l’utilisation",
+    retry: "Réessayer",
+    updated: (relative: string) => `Mis à jour ${relative}`,
   },
   en: {
     used: (pct: string) => `${pct.replace("%", "").trim()}% used`,
@@ -34,6 +40,12 @@ const COPY = {
     labels: { session: "Session", weekly: "Weekly", monthly: "Monthly", code_review: "Code review", credits: "Credits", monthly_credits: "Monthly credits" },
     status: { error: "Error", unavailable: "Unavailable" },
     loading: "Loading usage...",
+    title: "Plan usage",
+    refreshAll: "Refresh all",
+    empty: "No usage data",
+    errorTitle: "Couldn't load usage",
+    retry: "Retry",
+    updated: (relative: string) => `Updated ${relative}`,
   },
 } as const;
 

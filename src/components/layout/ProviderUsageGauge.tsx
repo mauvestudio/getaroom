@@ -2,19 +2,17 @@ import { useMemo, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import { useProviderUsage } from "../../lib/useProviderUsage";
 import type { ProviderUsageWindow } from "../../lib/paseo/types";
+import { currentLanguage } from "../../i18n/I18nContext";
+import { timeAgo } from "../../lib/time";
+import { usageCopy, windowTone } from "../../lib/usage-format";
 import { PressButton } from "../ui/button";
+import { FILL, UsageCardCompact } from "./ProviderUsageCard";
 import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 
 function getPercent(window: ProviderUsageWindow): number | null {
   if (typeof window.usedPct === "number") return Math.max(0, Math.min(100, window.usedPct));
   if (typeof window.remainingPct === "number") return Math.max(0, Math.min(100, 100 - window.remainingPct));
   return null;
-}
-
-function getTone(window: ProviderUsageWindow, percent: number | null): string {
-  if (window.tone === "danger" || (percent !== null && percent >= 90)) return "bg-destructive";
-  if (window.tone === "warning" || (percent !== null && percent >= 70)) return "bg-primary";
-  return "bg-foreground/70";
 }
 
 function getShortLabel(window: ProviderUsageWindow): string {
@@ -26,7 +24,9 @@ function getShortLabel(window: ProviderUsageWindow): string {
 
 export function ProviderUsageGauge() {
   // Source partagée avec la fiche « Fenêtre de contexte » : une seule requête au daemon.
-  const { providers, error, loading, refresh } = useProviderUsage();
+  const { providers, error, loading, refresh, fetchedAt } = useProviderUsage();
+  const lang = currentLanguage();
+  const copy = usageCopy(lang);
   const [open, setOpen] = useState(false);
 
   const provider = useMemo(
@@ -55,7 +55,7 @@ export function ProviderUsageGauge() {
                 return (
                   <span key={window.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-0.5">
                     <span className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/20">
-                      <span className={`block h-full rounded-full ${getTone(window, percent)}`} style={{ width: `${percent ?? 0}%` }} />
+                      <span className="block h-full rounded-full" style={{ width: `${percent ?? 0}%`, backgroundColor: FILL[windowTone(window, percent)] ?? FILL.default }} />
                     </span>
                     <span className="font-mono text-[10px] tabular-nums text-foreground">{percent === null ? "—" : `${Math.round(percent)} %`}</span>
                     <span className="col-span-2 truncate text-left text-[9px] leading-none text-muted-foreground">{getShortLabel(window)}</span>
@@ -70,44 +70,33 @@ export function ProviderUsageGauge() {
           )}
       </PressButton>
       </PopoverAnchor>
-      <PopoverContent align="start" side="top" className="w-80 space-y-3 p-3">
+      <PopoverContent align="start" side="top" className="w-[340px] space-y-3 p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-foreground">Utilisation Paseo</div>
-            {provider && <div className="truncate text-[10px] text-muted-foreground">{provider.displayName}{provider.planLabel ? ` · ${provider.planLabel}` : ""}</div>}
-          </div>
-          <PressButton type="button" onPress={() => void refresh()} disabled={loading} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50" title="Actualiser les quotas" aria-label="Actualiser les quotas">
+          <div className="text-[14px] font-medium text-foreground">{copy.title}</div>
+          <PressButton type="button" onPress={() => void refresh()} disabled={loading} className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50" aria-label={copy.refreshAll} title={copy.refreshAll}>
             <RefreshCw className={`h-3.5 w-3.5 pointer-events-none ${loading ? "animate-spin" : ""}`} />
+            {copy.refreshAll}
           </PressButton>
         </div>
         {providers.length > 0 ? (
-          <div className="max-h-64 space-y-3 overflow-y-auto">
-            {providers.map((entry) => (
-              <section key={entry.providerId} className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className="truncate font-medium text-foreground">{entry.displayName}</span>
-                  <span className="shrink-0 text-muted-foreground">{entry.planLabel || (entry.status === "available" ? "Disponible" : entry.status === "error" ? "Erreur" : "Indisponible")}</span>
-                </div>
-                {entry.windows.map((window) => {
-                  const percent = getPercent(window);
-                  return (
-                    <div key={window.id} className="space-y-1">
-                      <div className="flex justify-between gap-2 text-[10px] text-muted-foreground">
-                        <span className="truncate">{window.label}</span>
-                        <span className="shrink-0 font-mono text-foreground">{percent === null ? "—" : `${Math.round(percent)} %`}</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/15">
-                        <div className={`h-full rounded-full ${getTone(window, percent)}`} style={{ width: `${percent ?? 0}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </section>
+          <div className="max-h-[420px] space-y-4 overflow-y-auto">
+            {providers.map((entry, index) => (
+              <div key={entry.providerId} className={index > 0 ? "border-t border-border pt-4" : undefined}>
+                <UsageCardCompact provider={entry} lang={lang} loading={loading} onRefresh={() => void refresh()} />
+              </div>
             ))}
           </div>
+        ) : loading ? (
+          <p className="text-[12px] text-muted-foreground">{copy.loading}</p>
+        ) : error ? (
+          <div className="space-y-1">
+            <p className="text-[12px] font-medium text-foreground">{copy.errorTitle}</p>
+            <p className="text-[12px] text-muted-foreground">{error}</p>
+          </div>
         ) : (
-          <p className="text-xs text-muted-foreground">{error || "Aucun quota n’est actuellement communiqué par Paseo."}</p>
+          <p className="text-[12px] text-muted-foreground">{copy.empty}</p>
         )}
+        {fetchedAt > 0 && providers.length > 0 && <p className="text-[11px] text-muted-foreground">{copy.updated(timeAgo(fetchedAt))}</p>}
       </PopoverContent>
     </Popover>
   );
