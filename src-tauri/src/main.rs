@@ -257,7 +257,10 @@ pub fn run() {
             let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("getaroom")
                 .inner_size(1480.0, 940.0)
-                .min_inner_size(900.0, 640.0);
+                .min_inner_size(900.0, 640.0)
+                // Le gestionnaire natif de glisser-déposer capte les fichiers avant la page : sans cette ligne,
+                // les événements HTML5 `drop` (images déposées dans le chat) n'arrivent jamais au composer.
+                .disable_drag_drop_handler();
             #[cfg(target_os = "macos")]
             let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
             builder.build()?;

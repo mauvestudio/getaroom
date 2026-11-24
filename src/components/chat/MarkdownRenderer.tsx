@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from "react";
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import Prism from "prismjs";
 import { Copy, Check } from "lucide-react";
 import { clsx } from "clsx";
 import { PressButton } from "../ui/button";
+import { LocalFileImage } from "./LocalFileImage";
+import { localFilePath } from "../../lib/local-file-url";
 
 // Prism language components
 import "prismjs/components/prism-bash";
@@ -20,6 +22,14 @@ import "prismjs/components/prism-diff";
 import "prismjs/components/prism-sql";
 import "prismjs/components/prism-rust";
 import "prismjs/components/prism-go";
+
+/**
+ * react-markdown efface les URL hors http(s)/mailto. Les images de la timeline sont des `file://` (fichiers du démon,
+ * lus via LocalFileImage) : on les garde pour les images seulement ; liens et autres protocoles restent filtrés.
+ */
+export function urlTransform(url: string, key?: string): string {
+  return key === "src" && url.toLowerCase().startsWith("file://") ? url : defaultUrlTransform(url);
+}
 
 interface CodeBlockProps {
   code: string;
@@ -173,6 +183,7 @@ export function MarkdownRenderer({
     >
       <Markdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        urlTransform={urlTransform}
         components={{
           table({ children, ...props }) {
             return (
@@ -499,14 +510,12 @@ export function MarkdownRenderer({
               </a>
             );
           },
-          img({ ...props }) {
-            return (
-              <img
-                className="my-3 max-w-full rounded-lg border border-border object-contain max-h-96"
-                loading="lazy"
-                {...props}
-              />
-            );
+          img({ node: _node, ...props }) {
+            const className = "my-3 max-w-full rounded-lg border border-border object-contain max-h-96";
+            // file:///… = fichier du démon (pièce jointe, capture d'outil) : lu via le démon, pas par le navigateur.
+            const path = localFilePath(typeof props.src === "string" ? props.src : undefined);
+            if (path) return <LocalFileImage path={path} alt={props.alt} className={className} />;
+            return <img className={className} loading="lazy" {...props} />;
           },
           strong({ children, ...props }) {
             return (
