@@ -9,6 +9,7 @@ import { sessionVisual } from "../../lib/session-visual";
 import { timeAgo } from "../../lib/time";
 import { useAgentHistory } from "../../lib/useAgentHistory";
 import { cn } from "../../lib/utils";
+import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 import { SessionStatusIcon } from "../ui/SessionStatusIcon";
 import { PressButton } from "../ui/button";
 
@@ -85,7 +86,7 @@ export function SessionHistoryPanel({ visible, onNavigate }: { visible: boolean;
   const [sort, setSort] = useState<HistorySort>("activity");
   const [hostId, setHostId] = useState("all");
   const [resumingId, setResumingId] = useState<string | null>(null);
-  const [resumeError, setResumeError] = useState("");
+  const [resumeFailure, setResumeFailure] = useState<{ error: unknown; hostId: string; providerId?: string } | null>(null);
 
   const enabledHosts = useMemo(() => hosts.filter((host) => host.enabled), [hosts]);
   const scopedHost = enabledHosts.some((host) => host.id === hostId) ? hostId : undefined;
@@ -111,12 +112,12 @@ export function SessionHistoryPanel({ visible, onNavigate }: { visible: boolean;
 
   const resume = async (session: HistorySession) => {
     setResumingId(session.id);
-    setResumeError("");
+    setResumeFailure(null);
     try {
       await resumeArchivedSession(session);
       onNavigate?.();
     } catch (error) {
-      setResumeError(error instanceof Error ? error.message : "Impossible de reprendre cette session.");
+      setResumeFailure({ error, hostId: session.hostId, providerId: session.provider });
     } finally {
       setResumingId(null);
     }
@@ -161,7 +162,8 @@ export function SessionHistoryPanel({ visible, onNavigate }: { visible: boolean;
       </div>
 
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2 py-2">
-        {(resumeError || history.error) && <p role="alert" className="mb-2 rounded-md bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive">{resumeError || history.error}</p>}
+        {resumeFailure && <DiagnosticNotice error={resumeFailure.error} hostId={resumeFailure.hostId} providerId={resumeFailure.providerId} className="mb-2" />}
+        {history.error && <p role="alert" className="mb-2 rounded-md bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive">{history.error}</p>}
         {history.hostErrors.map((entry) => <p key={entry.hostId} role="status" className="mb-1 px-2 text-[10px] text-muted-foreground">{`${entry.hostLabel} · Impossible de charger l’historique`}</p>)}
 
         {history.isInitialLoad && <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Chargement…</div>}

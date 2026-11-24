@@ -12,6 +12,8 @@ import { TodoBlock } from "./TodoBlock";
 import { CompactionMarker } from "./CompactionMarker";
 import { ApprovalCard } from "../room/ApprovalCard";
 import { SummaryTurnCard } from "./SummaryTurnCard";
+import { DiagnosticNotice } from "../ui/DiagnosticNotice";
+import { getAgentHostId } from "../../lib/paseo/multi-host-client";
 import {
   Sparkles,
   ArrowDown,
@@ -490,6 +492,19 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                 case "compaction":
                   return <CompactionMarker key={index} item={item} />;
                 case "error":
+                  // Échec de chargement de l'historique : cause réelle (démon, hôte, provider) plutôt que message brut.
+                  if (item.message.startsWith("Impossible de charger l’historique") || item.message.startsWith("L’hôte Paseo de cette session")) {
+                    return (
+                      <div key={index} className="my-3 space-y-2">
+                        <DiagnosticNotice error={item.message} hostId={activeAgentId ? getAgentHostId(activeAgentId) : undefined} providerId={activeAgent?.provider} />
+                        {timeline.length === 1 && (
+                          <PressButton onPress={() => void refreshTimeline(activeAgentId || undefined)} className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-muted">
+                            Réessayer
+                          </PressButton>
+                        )}
+                      </div>
+                    );
+                  }
                   return (
                     <div
                       key={index}

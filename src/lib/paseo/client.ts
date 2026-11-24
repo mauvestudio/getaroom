@@ -238,20 +238,36 @@ export class PaseoClient {
 
     const onVisibleOrOnline = () => {
       if (document.visibilityState === "visible" || navigator.onLine) {
-        this.checkConnectionLiveness();
+        void this.checkConnectionLiveness();
       }
     };
+    // Changement d'interface réseau (Wi-Fi ↔ Tailscale/VPN) : les sockets existants sont souvent figés.
+    const onNetworkChange = () => void this.checkConnectionLiveness(true);
 
     document.addEventListener("visibilitychange", onVisibleOrOnline);
     window.addEventListener("focus", onVisibleOrOnline);
-    window.addEventListener("online", onVisibleOrOnline);
+    window.addEventListener("online", onNetworkChange);
     window.addEventListener("pageshow", onVisibleOrOnline);
+    const connection = (navigator as any).connection;
+    connection?.addEventListener?.("change", onNetworkChange);
+
+    // Reprise après veille : le minuteur ne tourne pas pendant la veille, donc un grand écart entre
+    // deux ticks signale que le Mac vient de se réveiller (les navigateurs n'émettent pas toujours d'événement).
+    let lastTick = Date.now();
+    const wakeTimer = window.setInterval(() => {
+      const now = Date.now();
+      const gap = now - lastTick;
+      lastTick = now;
+      if (gap > PaseoClient.WAKE_GAP_MS) void this.checkConnectionLiveness(true);
+    }, 5000);
 
     this.cleanupBrowserListeners = () => {
       document.removeEventListener("visibilitychange", onVisibleOrOnline);
       window.removeEventListener("focus", onVisibleOrOnline);
-      window.removeEventListener("online", onVisibleOrOnline);
+      window.removeEventListener("online", onNetworkChange);
       window.removeEventListener("pageshow", onVisibleOrOnline);
+      connection?.removeEventListener?.("change", onNetworkChange);
+      window.clearInterval(wakeTimer);
     };
   }
 
@@ -279,8 +295,37 @@ export class PaseoClient {
     return this.daemon;
   }
 
-  public checkConnectionLiveness() {
-    this.daemon.ensureConnected();
+  private static readonly WAKE_GAP_MS = 20_000;
+  private static readonly MIN_VERIFY_INTERVAL_MS = 3_000;
+  private verifying: Promise<void> | null = null;
+  private lastVerifyAt = 0;
+
+  /**
+   * Vérifie que la connexion répond vraiment (ping) et la refait proprement sinon.
+   * `force` : on soupçonne un socket périmé (réveil, changement de réseau) même s'il se dit « connecté ».
+   */
+  public checkConnectionLiveness(force = false): Promise<void> {
+    if (this.verifying) return this.verifying;
+    if (!force && Date.now() - this.lastVerifyAt < PaseoClient.MIN_VERIFY_INTERVAL_MS) return Promise.resolve();
+    this.lastVerifyAt = Date.now();
+    this.verifying = (async () => {
+      try {
+        if (this.state === "connected") {
+          try {
+            await this.daemon.ping({ timeoutMs: 4000 });
+            return;
+          } catch {
+            // Aucune réponse : le socket est mort ou gelé, on repart d'une connexion neuve.
+          }
+        }
+        await this.connect(true);
+      } catch {
+        // Le reconnecteur du DaemonClient prend le relais ; l'état est publié via state_change.
+      } finally {
+        this.verifying = null;
+      }
+    })();
+    return this.verifying;
   }
 
   public async measureLatency() {

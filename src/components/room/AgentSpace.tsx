@@ -17,6 +17,7 @@ import { SessionViewSwitch } from "../session/SessionViewSwitch";
 import { RoomTerminalView } from "./RoomTerminalView";
 import { roomProviderLabel } from "../../lib/room-provider-label";
 import { HermesStatusBadge } from "../ui/HermesStatusBadge";
+import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 import { SessionGitControls } from "../layout/SessionGitControls";
 import { TheRoomCanvas } from "./TheRoomCanvas";
 import { VisualHistoryButton } from "../chat/VisualHistoryButton";
@@ -82,7 +83,7 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   const { models, resumeArchivedSession } = useWorkspace();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [resumingId, setResumingId] = useState<string | null>(null);
-  const [resumeError, setResumeError] = useState("");
+  const [resumeFailure, setResumeFailure] = useState<{ error: unknown; hostId: string; providerId?: string } | null>(null);
   const history = useAgentHistory({ enabled: historyOpen, hostId: agent.paseo.hostId });
   // Mêmes critères que les fils actifs de l'agent (sessionsOf), limités aux archivés.
   const archived = useMemo(() => {
@@ -131,13 +132,13 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   }, [newThread]);
   const resume = async (session: HistorySession) => {
     setResumingId(session.id);
-    setResumeError("");
+    setResumeFailure(null);
     try {
       await resumeArchivedSession(session);
       selectThread(session.id);
       setHistoryOpen(false);
     } catch (error) {
-      setResumeError(error instanceof Error ? error.message : "Impossible de reprendre ce fil.");
+      setResumeFailure({ error, hostId: session.hostId, providerId: session.provider });
     } finally {
       setResumingId(null);
     }
@@ -161,7 +162,8 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
       </div>
     </header>
     {historyOpen && <section aria-label="Fils archivés" className="max-h-48 shrink-0 overflow-auto border-b border-border p-3">
-      {(resumeError || history.error) && <p role="alert" className="pb-1 text-xs text-destructive">{resumeError || history.error}</p>}
+      {resumeFailure && <DiagnosticNotice error={resumeFailure.error} hostId={resumeFailure.hostId} providerId={resumeFailure.providerId} className="mb-2" />}
+      {history.error && <p role="alert" className="pb-1 text-xs text-destructive">{history.error}</p>}
       {history.hostErrors.map((entry) => <p key={entry.hostId} role="status" className="pb-1 text-[10px] text-muted-foreground">{`${entry.hostLabel} · Impossible de charger l’historique`}</p>)}
       {(historyLoading || isLoadingMore) && archived.length === 0 && <p role="status" className="text-xs text-muted-foreground">Chargement de l’historique…</p>}
       {history.loaded && !historyLoading && !isLoadingMore && !hasMore && !history.error && history.hostErrors.length === 0 && archived.length === 0 && <p role="status" className="text-xs text-muted-foreground">Aucun fil archivé pour cet agent.</p>}

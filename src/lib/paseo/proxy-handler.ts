@@ -166,7 +166,8 @@ export const proxyWebSocketHandler = {
       };
 
       upstreamWs.onerror = (err) => {
-        recordRelayLog("error", `Erreur WebSocket distante : ${String(err)}`, targetUrl);
+        const loopback = /^wss?:\/\/(127\.0\.0\.1|localhost|\[::1\])/.test(targetUrl);
+        recordRelayLog("error", `${loopback ? "Démon Paseo local injoignable ou connexion refusée" : "Hôte Paseo distant injoignable (réseau, VPN ou délai dépassé)"} : ${String(err)}`, targetUrl);
         console.warn("[Amble Proxy] Upstream Paseo error:", err);
       };
 

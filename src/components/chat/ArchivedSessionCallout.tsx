@@ -2,21 +2,22 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { PressButton } from "../ui/button";
+import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 
 /** Remplace le composer d'une session archivée, comme le bandeau « Cet agent est archivé » de Paseo. */
 export function ArchivedSessionCallout() {
   const { activeAgent, resumeArchivedSession } = useWorkspace();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
   if (!activeAgent) return null;
 
   const resume = async () => {
     setBusy(true);
-    setError("");
+    setError(null);
     try {
       await resumeArchivedSession(activeAgent);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Impossible de reprendre cette session.");
+      setError(cause ?? new Error("Impossible de reprendre cette session."));
     } finally {
       setBusy(false);
     }
@@ -31,7 +32,7 @@ export function ArchivedSessionCallout() {
           Reprendre
         </PressButton>
       </div>
-      {error && <p role="alert" className="mt-2 text-center text-xs text-destructive">{error}</p>}
+      {error != null && <DiagnosticNotice error={error} hostId={activeAgent.hostId} providerId={activeAgent.provider} className="mt-2" />}
     </div>
   );
 }

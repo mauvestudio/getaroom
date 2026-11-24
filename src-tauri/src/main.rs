@@ -16,6 +16,40 @@ struct RelayChild(Mutex<Option<CommandChild>>);
 
 static EXITING: AtomicBool = AtomicBool::new(false);
 
+/// Lancée depuis le Finder, l'app hérite d'un PATH minimal (/usr/bin:/bin…) : les CLI installées par
+/// l'utilisateur (claude, codex, opencode…) sont alors introuvables pour le démon Paseo.
+/// On complète le PATH avec les dossiers usuels qui existent, sans passer devant ceux déjà présents.
+fn enriched_path(home: &std::path::Path, current: &str) -> String {
+    let mut entries: Vec<std::path::PathBuf> = std::env::split_paths(current).collect();
+    let mut candidates: Vec<std::path::PathBuf> = [".local/bin", ".bun/bin", ".opencode/bin", ".claude/local", ".cargo/bin", ".volta/bin", ".npm-global/bin"]
+        .iter()
+        .map(|dir| home.join(dir))
+        .collect();
+    // nvm : versions installées, la plus récente d'abord.
+    let nvm_root = home.join(".nvm/versions/node");
+    if let Ok(read) = std::fs::read_dir(&nvm_root) {
+        let mut versions: Vec<String> = read.flatten().filter_map(|entry| entry.file_name().into_string().ok()).collect();
+        let key = |name: &str| -> Vec<u64> { name.trim_start_matches('v').split('.').map(|part| part.parse().unwrap_or(0)).collect() };
+        versions.sort_by(|a, b| key(b).cmp(&key(a)));
+        candidates.extend(versions.into_iter().map(|version| nvm_root.join(version).join("bin")));
+    }
+    candidates.extend(["/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/local/sbin"].iter().map(std::path::PathBuf::from));
+    for dir in candidates {
+        if dir.is_dir() && !entries.contains(&dir) {
+            entries.push(dir);
+        }
+    }
+    std::env::join_paths(entries).map(|joined| joined.to_string_lossy().into_owned()).unwrap_or_else(|_| current.to_string())
+}
+
+fn user_path() -> String {
+    let current = std::env::var("PATH").unwrap_or_default();
+    match std::env::var_os("HOME") {
+        Some(home) => enriched_path(std::path::Path::new(&home), &current),
+        None => current,
+    }
+}
+
 /// Start Paseo's own background supervisor with its existing local profile.
 /// The daemon is shared with other clients and outlives this window.
 #[cfg(target_os = "macos")]
@@ -40,6 +74,7 @@ fn start_local_paseo_if_needed() {
             let bundled_cli = "/Applications/Paseo.app/Contents/Resources/bin/paseo";
             let cli = if std::path::Path::new(bundled_cli).is_file() { bundled_cli } else { "paseo" };
             match Command::new(cli)
+                .env("PATH", user_path())
                 .args(["daemon", "start", "--timeout", "15"])
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
@@ -119,6 +154,7 @@ pub fn run() {
                 .env("GETAROOM_DATA_DIR", &data_dir)
                 .env("GETAROOM_LOOPBACK_ONLY", "1")
                 .env("GETAROOM_PARENT_PID", std::process::id().to_string())
+                .env("PATH", user_path())
                 .args(["--host", "127.0.0.1", "--port", &port.to_string()])
                 .spawn()?;
             app.manage(RelayChild(Mutex::new(Some(child))));
@@ -173,4 +209,43 @@ pub fn run() {
 
 fn main() {
     run();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enriched_path;
+    use std::fs;
+
+    fn temp_home(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("getaroom-path-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn adds_existing_user_dirs_after_the_current_path() {
+        let home = temp_home("add");
+        fs::create_dir_all(home.join(".local/bin")).unwrap();
+        fs::create_dir_all(home.join(".bun/bin")).unwrap();
+        let path = enriched_path(&home, "/usr/bin:/bin");
+        assert!(path.starts_with("/usr/bin:/bin:"));
+        assert!(path.contains(&home.join(".local/bin").to_string_lossy().to_string()));
+        assert!(path.contains(&home.join(".bun/bin").to_string_lossy().to_string()));
+        assert!(!path.contains(".opencode"));
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn does_not_duplicate_and_prefers_newest_nvm() {
+        let home = temp_home("nvm");
+        fs::create_dir_all(home.join(".local/bin")).unwrap();
+        fs::create_dir_all(home.join(".nvm/versions/node/v20.1.0/bin")).unwrap();
+        fs::create_dir_all(home.join(".nvm/versions/node/v22.4.0/bin")).unwrap();
+        let local = home.join(".local/bin").to_string_lossy().to_string();
+        let path = enriched_path(&home, &format!("{local}:/usr/bin"));
+        assert_eq!(path.matches(&local).count(), 1);
+        assert!(path.find("v22.4.0").unwrap() < path.find("v20.1.0").unwrap());
+        let _ = fs::remove_dir_all(home);
+    }
 }
