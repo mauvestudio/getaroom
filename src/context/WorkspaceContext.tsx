@@ -135,6 +135,8 @@ interface WorkspaceContextType {
   setActiveAgentId: (id: string | null) => void;
   refreshAgents: () => Promise<void>;
   /** Ouvre une session de l'historique (lecture seule si elle est archivée). */
+  /** Session ouverte depuis l'historique, absente de la liste active tant qu'elle n'est pas relancée. */
+  historySession: AgentSnapshot | null;
   openHistorySession: (session: AgentSnapshot) => void;
   /** Désarchive une session en gardant son id, puis l'active (sémantique `refreshAgent` de Paseo). */
   resumeArchivedSession: (session: Pick<AgentSnapshot, "id" | "workspaceId">) => Promise<void>;
@@ -1100,6 +1102,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           workspaceId: typeof p.workspaceId === "string" ? p.workspaceId : undefined,
           models: providerModels,
           hostId: p.hostId || "local",
+          error: typeof p.error === "string" && p.error.trim() ? p.error.trim() : undefined,
         });
       }
 
@@ -3091,6 +3094,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         isNewSessionDraft,
         setActiveAgentId,
         refreshAgents,
+        historySession,
         openHistorySession,
         resumeArchivedSession,
 

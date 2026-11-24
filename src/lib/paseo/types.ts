@@ -188,6 +188,8 @@ export interface PaseoProviderInfo {
   workspaceId?: string;
   models: AgentModel[];
   hostId?: string;
+  /** Erreur brute du démon pour ce provider (binaire introuvable, non authentifié…). */
+  error?: string;
 }
 
 export interface AgentMode {

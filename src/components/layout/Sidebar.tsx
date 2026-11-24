@@ -982,6 +982,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
     projects,
     workspaces,
     allAgents,
+    historySession,
     activeAgentId,
     activeWorkspaceId,
     setActiveAgentId,
@@ -1120,6 +1121,12 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
     });
   };
 
+  // La conversation ouverte depuis l'historique reste visible et sélectionnée dans l'arbre, comme dans Paseo.
+  const treeAgents = useMemo(
+    () => historySession && !allAgents.some((agent) => agent.id === historySession.id) ? [...allAgents, historySession] : allAgents,
+    [allAgents, historySession],
+  );
+
   const fullTree = useMemo(() => {
     // 1. Unique projects by id or rootPath
     const pMap = new Map<string, ProjectItem>();
@@ -1158,14 +1165,14 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       );
 
       const directSessions = directWorkspace
-        ? allAgents.filter((a) => a.workspaceId === directWorkspace.id)
+        ? treeAgents.filter((a) => a.workspaceId === directWorkspace.id)
         : [];
 
       const worktrees = worktreeWorkspaces.map((wt) => ({
         title: wt.title,
         branch: wt.branch || wt.worktreeSlug || wt.name,
         workspaceId: wt.id,
-        sessions: allAgents.filter((a) => a.workspaceId === wt.id),
+        sessions: treeAgents.filter((a) => a.workspaceId === wt.id),
       }));
 
       return {
@@ -1177,7 +1184,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
     });
 
     return sortByGroup(sortProjectsByOrder(items, projectOrder), (i) => i.project.rootPath);
-  }, [projects, workspaces, allAgents, projectOrder]);
+  }, [projects, workspaces, treeAgents, projectOrder]);
 
   const projectTree = useMemo(
     () =>
