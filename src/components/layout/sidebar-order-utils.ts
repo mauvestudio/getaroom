@@ -143,3 +143,16 @@ export function getSessionContextLabel(
   }
   return projectName || branchName || "";
 }
+
+/**
+ * Sessions d'un projet hors worktrees. Paseo crée un workspace `local_checkout` par « Nouvel espace de travail »
+ * (plusieurs workspaces pour le même dossier) : toutes leurs sessions appartiennent au projet, pas seulement
+ * celles du premier workspace.
+ */
+export function collectDirectSessions<T extends { workspaceId?: string }>(
+  agents: readonly T[],
+  directWorkspaces: ReadonlyArray<{ id: string }>,
+): T[] {
+  const ids = new Set(directWorkspaces.map((workspace) => workspace.id));
+  return ids.size === 0 ? [] : agents.filter((agent) => agent.workspaceId !== undefined && ids.has(agent.workspaceId));
+}

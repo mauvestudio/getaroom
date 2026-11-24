@@ -5,6 +5,7 @@ import {
   sortProjectsByOrder,
   reorderProjectKeys,
   getRecentSessions,
+  collectDirectSessions,
   getSessionContextLabel,
 } from "./sidebar-order-utils";
 import type { AgentSnapshot, ProjectItem, WorkspaceItem } from "../../lib/paseo/types";
@@ -271,5 +272,20 @@ describe("sidebar-order-utils", () => {
       };
       expect(getSessionContextLabel(session, workspaces, projects)).toBe("");
     });
+  });
+});
+
+describe("collectDirectSessions", () => {
+  it("regroupe les sessions de tous les workspaces locaux du projet", () => {
+    const agents = [
+      { id: "a", workspaceId: "w1" },
+      { id: "b", workspaceId: "w2" },
+      { id: "c", workspaceId: "w-worktree" },
+      { id: "d" },
+    ];
+    expect(collectDirectSessions(agents, [{ id: "w1" }, { id: "w2" }]).map((a) => a.id)).toEqual(["a", "b"]);
+  });
+  it("aucun workspace local → aucune session", () => {
+    expect(collectDirectSessions([{ id: "a", workspaceId: "w1" }], [])).toEqual([]);
   });
 });

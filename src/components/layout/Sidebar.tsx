@@ -46,6 +46,7 @@ import {
   Bug,
   Keyboard, History, Bot, Network } from "lucide-react";
 import {
+  collectDirectSessions,
   getProjectKey,
   parseStoredProjectOrder,
   sortProjectsByOrder,
@@ -1157,16 +1158,15 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
           (p.rootPath && w.path === p.rootPath),
       );
 
-      const directWorkspace = projectWorkspaces.find(
+      const directWorkspaces = projectWorkspaces.filter(
         (w) => w.workspaceKind === "local_checkout" || w.workspaceKind === "directory",
       );
+      const directWorkspace = directWorkspaces[0];
       const worktreeWorkspaces = projectWorkspaces.filter(
         (w) => w.workspaceKind === "worktree",
       );
 
-      const directSessions = directWorkspace
-        ? treeAgents.filter((a) => a.workspaceId === directWorkspace.id)
-        : [];
+      const directSessions = collectDirectSessions(treeAgents, directWorkspaces);
 
       const worktrees = worktreeWorkspaces.map((wt) => ({
         title: wt.title,
@@ -1178,6 +1178,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       return {
         project: p,
         directWorkspace,
+        directWorkspaceIds: directWorkspaces.map((w) => w.id),
         directSessions,
         worktrees,
       };
@@ -1470,13 +1471,13 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       {!historyOpen && mode === "studio" && (
       <ScrollArea hideScrollbar className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
         <div className="space-y-2.5">
-          {projectTree.map(({ project, directWorkspace, directSessions, worktrees }, index) => {
+          {projectTree.map(({ project, directWorkspace, directWorkspaceIds, directSessions, worktrees }, index) => {
             const projectKey = getProjectKey(project);
             const group = projectGroup(project.rootPath);
             const startsGroup =
               groupFilter === "all" &&
               (index === 0 || projectGroup(projectTree[index - 1]!.project.rootPath) !== group);
-            const isProjectSelected = mode === "studio" && (activeWorkspaceId === project.id || activeWorkspaceId === directWorkspace?.id || worktrees.some((wt) => wt.workspaceId === activeWorkspaceId) || directSessions.some((session) => session.id === activeAgentId) || worktrees.some((wt) => wt.sessions.some((session) => session.id === activeAgentId)));
+            const isProjectSelected = mode === "studio" && (activeWorkspaceId === project.id || directWorkspaceIds.includes(activeWorkspaceId ?? "") || worktrees.some((wt) => wt.workspaceId === activeWorkspaceId) || directSessions.some((session) => session.id === activeAgentId) || worktrees.some((wt) => wt.sessions.some((session) => session.id === activeAgentId)));
             const isBeingDragged = draggedProjectKey === projectKey;
             const isDropTargetAbove = dropTarget?.key === projectKey && dropTarget.position === "above";
             const isDropTargetBelow = dropTarget?.key === projectKey && dropTarget.position === "below";
