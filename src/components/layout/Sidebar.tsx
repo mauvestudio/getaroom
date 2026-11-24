@@ -1013,10 +1013,10 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       <div className="flex min-w-0 items-center gap-2 text-sm font-normal">
         <SessionStatusIcon
           state={visualOf(session)}
-          className="[&>span]:size-2"
+          className="h-4 w-4 [&>span]:size-1.5"
           idle={
-            <span aria-hidden="true" className="flex size-3.5 shrink-0 items-center justify-center">
-              <span className="size-2 rounded-full bg-muted-foreground/50" />
+            <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+              <span className="size-1.5 rounded-full bg-[var(--foreground-extra-muted)]" />
             </span>
           }
         />
@@ -1469,7 +1469,8 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
 
       {/* Tree list with Shadcn ScrollArea */}
       {!historyOpen && mode === "studio" && (
-      <ScrollArea hideScrollbar className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="py-3 px-2">
+      <ScrollArea hideScrollbar className="sidebar-scroll flex-1 h-full min-h-0" viewportClassName="pt-0.5 pb-4 px-2">
+        <div className="flex h-9 items-center pl-2 pr-1 text-xs text-muted-foreground">Workspaces</div>
         <div className="space-y-2.5">
           {projectTree.map(({ project, directWorkspace, directWorkspaceIds, directSessions, worktrees }, index) => {
             const projectKey = getProjectKey(project);
@@ -1517,37 +1518,20 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                   draggable
                   onDragStart={(e) => handleDragStart(e, projectKey)}
                   onDragEnd={handleDragEnd}
-                  className={cn("group flex items-center justify-between rounded-md px-1.5 py-1 text-foreground transition-colors", isProjectSelected ? "bg-muted/60 font-semibold" : "hover:bg-muted/40")}
+                  className={cn("group flex h-10 items-center justify-between rounded-lg px-2 transition-colors", isProjectSelected ? "bg-muted/60 text-foreground" : "text-muted-foreground hover:bg-muted/40")}
                 >
-                  <div className="flex items-center gap-1 min-w-0 flex-1">
-                    <PressButton
-                      type="button"
-                      draggable={false}
-                      onDragStart={(e) => e.stopPropagation()}
-                      onPress={() => {
-                        toggleProjectCollapse(project.id, isProjectCollapsed);
-                      }}
-                      className="p-1 sm:p-0.5 rounded text-muted-foreground/60 hover:text-foreground cursor-pointer shrink-0 touch-manipulation"
-                      aria-expanded={!isProjectCollapsed}
-                      title={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
-                      aria-label={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
-                    >
-                      <ChevronRight
-                        className={`w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none transition-transform duration-150 ${
-                          !isProjectCollapsed ? "rotate-90" : ""
-                        }`}
-                      />
-                    </PressButton>
-
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <PressTarget
                       onPress={() => {
                         toggleProjectCollapse(project.id, isProjectCollapsed);
                         handleSelectProject(project, directWorkspace);
                       }}
-                      className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer truncate touch-manipulation"
+                      className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer truncate touch-manipulation"
+                      aria-expanded={!isProjectCollapsed}
+                      title={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
                     >
                       <ProjectIcon project={project} client={client} />
-                      <span className="font-semibold text-[13px] tracking-tight lowercase truncate">
+                      <span className="text-sm truncate">
                         {project.name}
                       </span>
                       {isProjectCollapsed && <SessionStatusIcon state={aggregateVisual([...directSessions, ...worktrees.flatMap((entry) => entry.sessions)].map(visualOf))} />}
@@ -1598,7 +1582,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                       const elapsed = formatElapsed(session.updatedAt || session.createdAt);
 
                       return (
-                        <div key={session.id} className="pl-6 pr-1">
+                        <div key={session.id}>
                           <PressTarget
                             onPress={() =>
                               handleSelectSession(
@@ -1606,21 +1590,13 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                 session.workspaceId || directWorkspace?.id || project.id,
                               )
                             }
-                            className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer transition-all ${
-                              isActive
-                                ? "bg-muted/70 text-foreground"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                            className={`flex h-9 items-center justify-between gap-2 rounded-lg pl-4 pr-3 text-sm text-foreground cursor-pointer transition-colors ${
+                              isActive ? "bg-muted/70" : "hover:bg-muted/40"
                             }`}
                           >
                             {renderSessionTitle(session)}
                             {elapsed && (
-                              <span
-                                className={`text-[10px] font-mono shrink-0 ml-1 ${
-                                  isActive
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : "text-muted-foreground/70"
-                                  }`}
-                              >
+                              <span className="ml-1 shrink-0 text-xs leading-5 text-[var(--foreground-extra-muted)]">
                                 {elapsed}
                               </span>
                             )}
@@ -1830,7 +1806,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                   onPress={() => {
                                     handleNewSession(wt.workspaceId || directWorkspace?.id || project.id);
                                   }}
-                                  className="flex items-center gap-1.5 px-2 py-1 sm:py-0.5 rounded text-xs sm:text-[11px] text-muted-foreground/70 hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
+                                  className="flex h-9 w-full items-center gap-2 rounded-lg pl-4 pr-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
                                   title={`Nouvelle session dans ${wt.branch}`}
                                   aria-label={`Nouvelle session dans ${wt.branch}`}
                                 >
@@ -1844,43 +1820,34 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                       );
                     })}
 
-                    {/* Empty Project / No Sessions */}
-                    {!hasChildren && (
-                      <div className="pl-6 pr-2 py-0.5">
-                        <span className="text-[11px] text-muted-foreground/60 select-none">
-                          Aucune session dans ce projet.
-                        </span>
-                      </div>
-                    )}
-
                     {/* New Session Action Item */}
-                    <div className="pl-6 pr-1 pt-0.5">
+                    <div>
                       <PressButton
                         type="button"
                         onPress={() => {
                           handleNewSession(directWorkspace?.id || project.id);
                         }}
-                        className="flex items-center gap-1.5 px-2 py-1 sm:py-0.5 rounded text-xs sm:text-[11px] text-muted-foreground/70 hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
+                        className="flex h-9 w-full items-center gap-2 rounded-lg pl-4 pr-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
                         title={`Nouvelle session dans ${project.name}`}
                         aria-label={`Nouvelle session dans ${project.name}`}
                       >
-                        <Plus className="w-3.5 h-3.5 sm:w-3 sm:h-3 opacity-70 shrink-0 pointer-events-none" />
+                        <Plus className="h-4 w-4 shrink-0 pointer-events-none" />
                         <span className="truncate">Nouvelle session…</span>
                       </PressButton>
                     </div>
 
                     {/* New Worktree Action Item */}
-                    <div className="pl-6 pr-1 pt-0.5">
+                    <div>
                       <PressButton
                         type="button"
                         onPress={() => {
                           setTargetWorktreeProject(project);
                         }}
-                        className="flex items-center gap-1.5 px-2 py-1 sm:py-0.5 rounded text-xs sm:text-[11px] text-muted-foreground/70 hover:text-foreground hover:bg-accent/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
+                        className="flex h-9 w-full items-center gap-2 rounded-lg pl-4 pr-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
                         title={`Nouveau worktree dans ${project.name}`}
                         aria-label={`Nouveau worktree dans ${project.name}`}
                       >
-                        <GitFork className="w-3.5 h-3.5 sm:w-3 sm:h-3 opacity-70 shrink-0 pointer-events-none" />
+                        <GitFork className="h-4 w-4 shrink-0 pointer-events-none" />
                         <span className="truncate">Nouveau worktree…</span>
                       </PressButton>
                     </div>

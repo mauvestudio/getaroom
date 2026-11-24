@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Folder } from "lucide-react";
 import type { ProjectItem } from "../../lib/paseo/types";
 import type { PaseoClient } from "../../lib/paseo/client";
 import { usePaseo } from "../../context/PaseoContext";
 import { cn } from "../../lib/utils";
+import { deriveIdentityColorName, identityColor } from "../../lib/identity-color";
 
 interface ProjectIconProps {
   project?: ProjectItem | null;
@@ -51,10 +51,21 @@ export function ProjectIcon({ project, client: propClient, className }: ProjectI
       <img
         src={iconUri}
         alt=""
-        className={cn("w-3.5 h-3.5 object-contain shrink-0 rounded-xs", className)}
+        className={cn("h-4 w-4 object-contain shrink-0 rounded-[4px]", className)}
       />
     );
   }
 
-  return <Folder className={cn("w-3.5 h-3.5 text-muted-foreground shrink-0", className)} />;
+  // Repli de Paseo : carré 16 px, rayon 4, initiale blanche de 9 px sur une couleur d'identité du projet.
+  const label = (project?.name || project?.rootPath?.split("/").filter(Boolean).pop() || "?").trim();
+  const color = identityColor(deriveIdentityColorName(project?.projectKey || project?.rootPath || project?.id || label));
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] text-[9px] leading-none text-white", className)}
+      style={{ backgroundColor: color }}
+    >
+      {label.charAt(0).toUpperCase()}
+    </span>
+  );
 }
