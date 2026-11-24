@@ -28,6 +28,8 @@ export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId: pr
     : null;
   const [status, setStatus] = useState<DaemonStatus | null>(null);
   const [busy, setBusy] = useState<DiagnosisAction | null>(null);
+  // Confirmation intégrée : window.confirm est muet dans le webview Tauri.
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [outcome, setOutcome] = useState("");
 
   // Chemin testé pour le binaire du provider : disponible seulement pour le démon de cette machine.
@@ -49,7 +51,11 @@ export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId: pr
   });
 
   const run = async (action: DiagnosisAction) => {
-    if (action === "restart-daemon" && !window.confirm("Redémarrer le démon Paseo local ? Les agents en cours seront interrompus.")) return;
+    if (action === "restart-daemon" && !confirmRestart) {
+      setConfirmRestart(true);
+      return;
+    }
+    setConfirmRestart(false);
     setBusy(action);
     setOutcome("");
     try {
@@ -82,7 +88,7 @@ export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId: pr
               {diagnosis.actions.filter((action) => isLocal || !action.endsWith("daemon")).map((action) => (
                 <PressButton key={action} type="button" disabled={busy !== null} onPress={() => void run(action)} className="flex h-7 items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 font-medium text-foreground hover:bg-accent disabled:opacity-60">
                   {busy === action && <Loader2 className="h-3 w-3 animate-spin" />}
-                  {DIAGNOSIS_ACTION_LABEL[action]}
+                  {action === "restart-daemon" && confirmRestart ? "Confirmer : les agents en cours seront interrompus" : DIAGNOSIS_ACTION_LABEL[action]}
                 </PressButton>
               ))}
             </div>

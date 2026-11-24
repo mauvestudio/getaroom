@@ -80,7 +80,7 @@ export async function controlDaemon(action: ControlAction): Promise<{ ok: boolea
   if (!cli) return { ok: false, message: "CLI Paseo introuvable (Paseo.app n’est pas installée et `paseo` n’est pas dans le PATH)." };
 
   if (action === "restart") {
-    const stopped = await run(cli, ["daemon", "stop", "--timeout", "15"], 25_000);
+    const stopped = await run(cli, ["daemon", "stop", "--keep-terminals", "--timeout", "15"], 25_000);
     if (!stopped.ok) recordRelayLog("warning", `Arrêt du démon : ${stopped.output || "échec"}`);
   }
   const started = await run(cli, ["daemon", "start", "--timeout", "15"], 30_000);
