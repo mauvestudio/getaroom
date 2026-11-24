@@ -31,6 +31,19 @@ export function urlTransform(url: string, key?: string): string {
   return key === "src" && url.toLowerCase().startsWith("file://") ? url : defaultUrlTransform(url);
 }
 
+const IMAGE_CLASS = "my-3 max-w-full rounded-lg border border-border object-contain max-h-96";
+
+/**
+ * Doit rester un composant de module (identité stable) : `components` de react-markdown est recréé à chaque rendu,
+ * et un composant défini en ligne serait démonté/remonté à chaque jeton reçu, faisant clignoter les images.
+ */
+function MarkdownImage({ node: _node, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { node?: unknown }) {
+  // file:///… = fichier du démon (pièce jointe, capture d'outil) : lu via le démon, pas par le navigateur.
+  const path = localFilePath(typeof props.src === "string" ? props.src : undefined);
+  if (path) return <LocalFileImage path={path} alt={props.alt} className={IMAGE_CLASS} />;
+  return <img className={IMAGE_CLASS} loading="lazy" {...props} />;
+}
+
 interface CodeBlockProps {
   code: string;
   language?: string;
@@ -510,13 +523,7 @@ export function MarkdownRenderer({
               </a>
             );
           },
-          img({ node: _node, ...props }) {
-            const className = "my-3 max-w-full rounded-lg border border-border object-contain max-h-96";
-            // file:///… = fichier du démon (pièce jointe, capture d'outil) : lu via le démon, pas par le navigateur.
-            const path = localFilePath(typeof props.src === "string" ? props.src : undefined);
-            if (path) return <LocalFileImage path={path} alt={props.alt} className={className} />;
-            return <img className={className} loading="lazy" {...props} />;
-          },
+          img: MarkdownImage,
           strong({ children, ...props }) {
             return (
               <strong className="font-semibold text-foreground" {...props}>

@@ -7,13 +7,16 @@ import { getAgentHostId } from "../../lib/paseo/multi-host-client";
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 // Une même image est affichée à chaque rendu du message : on ne la relit pas.
 const urlCache = new Map<string, Promise<string>>();
+// URL déjà résolues, lisibles de façon synchrone : une image remontée par React s'affiche tout de suite à sa taille
+// finale, sans repasser par le cadre de chargement (sinon la hauteur du chat oscille à chaque rendu).
+const resolvedUrls = new Map<string, string>();
 
 /** Image dont la source est un fichier du démon (file://…) : lue via le démon de l'hôte de la session. */
 export function LocalFileImage({ path, alt, className }: { path: string; alt?: string; className?: string }) {
   const { getClientForHost } = usePaseo();
   const { activeAgentId } = useWorkspace();
   const hostId = activeAgentId ? getAgentHostId(activeAgentId) : "local";
-  const [state, setState] = useState<{ url?: string; error?: string }>({});
+  const [state, setState] = useState<{ url?: string; error?: string }>(() => ({ url: resolvedUrls.get(`${hostId}:${path}`) }));
 
   useEffect(() => {
     let cancelled = false;
@@ -27,10 +30,13 @@ export function LocalFileImage({ path, alt, className }: { path: string; alt?: s
         return URL.createObjectURL(new Blob([bytes as BlobPart], { type: file.mime || "image/png" }));
       });
       urlCache.set(key, pending);
+      pending.then((url) => resolvedUrls.set(key, url), () => {});
       // Un échec ne doit pas rester en cache : la lecture sera retentée au prochain affichage.
       pending.catch(() => urlCache.delete(key));
     }
-    setState({});
+    const known = resolvedUrls.get(key);
+    if (known) setState((current) => (current.url === known ? current : { url: known }));
+    else setState({});
     pending.then(
       (url) => { if (!cancelled) setState({ url }); },
       (error) => { if (!cancelled) setState({ error: error instanceof Error ? error.message : "Lecture impossible." }); },
