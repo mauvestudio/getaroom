@@ -18,6 +18,7 @@
     "tauri:bundle": "bun run tauri:frontend && bun run tauri:sidecar",
     "deploy": "bun run deploy.ts",
     "install-daemon": "bun run install-daemon.ts",
+    "install-app": "bun run scripts/install-app.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {
