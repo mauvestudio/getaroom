@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Activity, BarChart3, CalendarDays, Clock3, Coins, Gauge, Layers3, MessageSquareText, RefreshCw, Timer, X } from "lucide-react";
 import { useRoom } from "../../context/RoomContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
@@ -106,7 +107,8 @@ export function StatsModal({ initialTargetId, onClose }: { initialTargetId?: str
     { label: "Tokens / Coût attribuable", current: `${current.tokens.toLocaleString("fr-FR")} tokens · ${current.costUsd === null ? "Indisponible" : `$${current.costUsd.toFixed(2)}`}`, previous: `${previous.tokens.toLocaleString("fr-FR")} tokens · ${previous.costUsd === null ? "Indisponible" : `$${previous.costUsd.toFixed(2)}`}` },
   ];
 
-  return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/75 p-2 backdrop-blur-sm sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  // Portail : sans lui, le z-index reste enfermé dans la zone principale et la sidebar recouvre la modale.
+  return createPortal(<div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/75 p-2 backdrop-blur-sm sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="stats-title" className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-[22px] border border-border bg-background shadow-xl">
       <header className="flex items-center gap-3 border-b border-border px-4 py-3 sm:px-6">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground"><BarChart3 className="h-4 w-4" /></span>
@@ -144,5 +146,5 @@ export function StatsModal({ initialTargetId, onClose }: { initialTargetId?: str
         </section>
       </div>
     </section>
-  </div>;
+  </div>, document.body);
 }

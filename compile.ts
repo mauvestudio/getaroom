@@ -205,6 +205,7 @@ import {
 import { agents, toPublic } from ${JSON.stringify(agentConfigPath)};
 import { getRemoteHosts, paseoHostsApi } from ${JSON.stringify(paseoHostsPath)};
 import { paseoHostProbeApi } from ${JSON.stringify(path.join(path.dirname(paseoHostsPath), "paseo-host-probe.ts"))};
+import { paseoDaemonApi } from ${JSON.stringify(path.join(path.dirname(paseoHostsPath), "paseo-daemon.ts"))};
 import { relayLogsApi } from ${JSON.stringify(path.join(path.dirname(paseoHostsPath), "relay-logs.ts"))};
 import { roomApi } from ${JSON.stringify(roomApiPath)};
 import { profileApi } from ${JSON.stringify(profileApiPath)};
@@ -281,6 +282,7 @@ const server = serve<ProxySocketData>({
     ...paseoHostsApi,
     ...relayLogsApi,
     ...paseoHostProbeApi,
+    ...paseoDaemonApi,
     ...roomApi,
     ...profileApi,
     ...projectActionsApi,

@@ -12,6 +12,7 @@ import logo from "./logo.svg" with { type: "text" };
 import { roomApi } from "./server/room-api";
 import { paseoHostProbeApi } from "./server/paseo-host-probe";
 import { relayLogsApi } from "./server/relay-logs";
+import { paseoDaemonApi } from "./server/paseo-daemon";
 import { getRemoteHosts, paseoHostsApi } from "./server/paseo-hosts";
 import { profileApi } from "./server/profile-api";
 import { projectActionsApi } from "./server/project-actions";
@@ -117,6 +118,7 @@ const server = serve<ProxySocketData>({
     ...roomsApi,
     ...relayLogsApi,
     ...paseoHostProbeApi,
+    ...paseoDaemonApi,
 
     "/api/health": {
       GET() {
