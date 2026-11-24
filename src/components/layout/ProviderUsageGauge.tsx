@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
-import { useProviderUsage } from "../../lib/useProviderUsage";
+import { pickSidebarUsage, useProviderUsage } from "../../lib/useProviderUsage";
+import { useWorkspace } from "../../context/WorkspaceContext";
 import type { ProviderUsageWindow } from "../../lib/paseo/types";
 import { currentLanguage } from "../../i18n/I18nContext";
 import { timeAgo } from "../../lib/time";
@@ -29,11 +30,8 @@ export function ProviderUsageGauge() {
   const copy = usageCopy(lang);
   const [open, setOpen] = useState(false);
 
-  const provider = useMemo(
-    () => providers.find((item) => item.status === "available" && item.windows.length > 0) || providers[0],
-    [providers],
-  );
-  const windows = provider?.windows.slice(0, 2) || [];
+  const { activeAgent } = useWorkspace();
+  const { provider, windows } = useMemo(() => pickSidebarUsage(providers, activeAgent?.provider), [providers, activeAgent?.provider]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -41,30 +39,30 @@ export function ProviderUsageGauge() {
       <PressButton
         type="button"
         onPress={() => setOpen((value) => !value)}
-        className="flex min-h-10 w-full min-w-0 items-center gap-2 rounded-xl border border-border/50 bg-background/45 px-2.5 text-muted-foreground transition-colors hover:border-border hover:bg-background/75 hover:text-foreground"
+        className="flex h-7 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
         aria-label="Ouvrir les quotas d’utilisation Paseo"
         aria-haspopup="dialog"
         aria-expanded={open}
         title={provider ? `Quotas Paseo · ${provider.displayName}` : "Quotas d’utilisation Paseo"}
       >
-          <Activity className="h-4 w-4 shrink-0 text-foreground/80 pointer-events-none" />
+          <Activity className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
           {windows.length > 0 ? (
-            <span className="grid min-w-0 flex-1 grid-cols-2 gap-2.5">
+            <span className="flex min-w-0 flex-1 items-center gap-3">
               {windows.map((window) => {
                 const percent = getPercent(window);
                 return (
-                  <span key={window.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-0.5">
-                    <span className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/20">
+                  <span key={window.id} className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-3)]">
                       <span className="block h-full rounded-full" style={{ width: `${percent ?? 0}%`, backgroundColor: FILL[windowTone(window, percent)] ?? FILL.default }} />
                     </span>
-                    <span className="font-mono text-[10px] tabular-nums text-foreground">{percent === null ? "—" : `${Math.round(percent)} %`}</span>
-                    <span className="col-span-2 truncate text-left text-[9px] leading-none text-muted-foreground">{getShortLabel(window)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-foreground">{percent === null ? "—" : `${Math.round(percent)} %`}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{getShortLabel(window)}</span>
                   </span>
                 );
               })}
             </span>
           ) : (
-            <span className="min-w-0 flex-1 truncate text-left text-[11px] font-medium">
+            <span className="min-w-0 flex-1 truncate text-left text-xs">
               {loading ? "Chargement des quotas…" : "Utilisation Paseo indisponible"}
             </span>
           )}

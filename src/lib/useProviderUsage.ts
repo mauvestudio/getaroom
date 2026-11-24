@@ -68,3 +68,22 @@ export function usageForProvider(providers: ProviderUsage[], providerId?: string
   });
   return matches.find((entry) => entry.status === "available") ?? matches[0];
 }
+
+const PREFERRED_USAGE_ORDER = ["claude", "codex"];
+
+/**
+ * Fenêtres résumées affichées dans la sidebar : provider de la session active s'il a des quotas,
+ * sinon Claude puis Codex, puis le premier disponible. Seules les fenêtres `summary` sont gardées (2 max),
+ * comme le résumé de Paseo.
+ */
+export function pickSidebarUsage(providers: ProviderUsage[], activeProviderId?: string | null): { provider: ProviderUsage | undefined; windows: ProviderUsage["windows"] } {
+  const usable = providers.filter((entry) => entry.status === "available" && entry.windows.length > 0);
+  const active = usageForProvider(usable, activeProviderId);
+  const rank = (entry: ProviderUsage) => {
+    const index = PREFERRED_USAGE_ORDER.indexOf(entry.providerId.toLocaleLowerCase());
+    return index === -1 ? PREFERRED_USAGE_ORDER.length : index;
+  };
+  const provider = active ?? [...usable].sort((a, b) => rank(a) - rank(b))[0] ?? providers[0];
+  const summary = provider?.windows.filter((window) => window.summary) ?? [];
+  return { provider, windows: (summary.length > 0 ? summary : provider?.windows ?? []).slice(0, 2) };
+}

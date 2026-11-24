@@ -868,7 +868,7 @@ function ProjectSettingsModal({
 }
 
 const SIDEBAR_FOOTER_ICON =
-  "flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground cursor-pointer touch-manipulation";
+  "flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground cursor-pointer touch-manipulation";
 
 function HelpMenuPopover() {
   const [open, setOpen] = useState(false);
@@ -1382,18 +1382,18 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       {/* Navigation compacte : Open Space, Dev et Room */}
       <div data-tauri-drag-region className="shrink-0 border-b border-border/40 px-3 py-2">
         <ModeSwitch onNavigate={() => { setHistoryOpen(false); onCloseMobile?.(); }} />
-        <div className="mt-2 flex gap-1.5">
+        <div className="mt-2 flex flex-col gap-0.5">
           {onOpenSearch && (
             <PressButton
               type="button"
               onPress={() => { onCloseMobile?.(); onOpenSearch(); }}
               aria-label="Recherche"
               title="Recherche (⌘K)"
-              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 text-left text-[12px] text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+              className="flex h-7 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
             >
               <Search className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
               <span className="min-w-0 flex-1 truncate">Recherche</span>
-              <kbd className="shrink-0 font-mono text-[10px] text-muted-foreground/70">⌘K</kbd>
+              <kbd className="shrink-0 font-mono text-[10px] text-[var(--foreground-extra-muted)]">⌘K</kbd>
             </PressButton>
           )}
           <PressButton
@@ -1402,12 +1402,12 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
             aria-pressed={historyOpen}
             title="Historique des sessions"
             className={cn(
-              "flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] transition-colors",
-              historyOpen ? "border-ring/60 bg-ring/10 text-foreground" : "border-border/60 bg-muted/30 text-muted-foreground hover:border-foreground/25 hover:text-foreground",
+              "flex h-7 w-full items-center gap-2 rounded-lg px-2 text-sm transition-colors",
+              historyOpen ? "bg-muted/60 text-foreground" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
             )}
           >
             <History className="h-3.5 w-3.5 shrink-0 pointer-events-none" />
-            Historique
+            <span className="min-w-0 flex-1 truncate text-left">Historique</span>
           </PressButton>
         </div>
       </div>
@@ -1495,7 +1495,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
             return (
               <React.Fragment key={projectKey}>
                 {startsGroup && (
-                  <div className="px-1.5 pt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="px-2 pt-3 pb-1 text-xs text-muted-foreground">
                     {GROUP_LABEL[group]}
                   </div>
                 )}
@@ -1759,7 +1759,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                 const elapsed = formatElapsed(session.updatedAt || session.createdAt);
 
                                 return (
-                                  <div key={session.id} className="pl-9 pr-1">
+                                  <div key={session.id} className="pl-3">
                                     <PressTarget
                                       onPress={() =>
                                         handleSelectSession(
@@ -1767,21 +1767,13 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                                           session.workspaceId || wt.workspaceId || project.id,
                                         )
                                       }
-                                      className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-md text-xs cursor-pointer transition-all touch-manipulation ${
-                                        isActive
-                                          ? "bg-muted/70 text-foreground"
-                                          : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                                      className={`flex h-9 items-center justify-between gap-2 rounded-lg pl-4 pr-3 text-sm text-foreground cursor-pointer transition-colors touch-manipulation ${
+                                        isActive ? "bg-muted/70" : "hover:bg-muted/40"
                                       }`}
                                     >
                                       {renderSessionTitle(session)}
                                       {elapsed && (
-                                        <span
-                                          className={`text-[10px] font-mono shrink-0 ml-1 ${
-                                            isActive
-                                              ? "text-amber-600 dark:text-amber-400"
-                                              : "text-muted-foreground/70"
-                                          }`}
-                                        >
+                                        <span className="ml-1 shrink-0 text-xs leading-5 text-[var(--foreground-extra-muted)]">
                                           {elapsed}
                                         </span>
                                       )}
@@ -1866,12 +1858,12 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       </ScrollArea>
       )}
 
-      <div className="shrink-0 border-t border-border/40 px-3 py-2">
+      <div className="shrink-0 border-t border-border px-2 py-1.5">
         <ProviderUsageGauge />
       </div>
 
       {/* Pied de sidebar : dossier, mise à jour, aide, réglages (comme Paseo) */}
-      <div className="flex h-12 shrink-0 items-center gap-0.5 border-t border-border/40 px-2">
+      <div className="flex h-10 shrink-0 items-center gap-0 px-2 py-1.5">
         <PressButton
           type="button"
           onPress={() => setIsRegisterProjectOpen(true)}
