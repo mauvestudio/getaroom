@@ -14,6 +14,7 @@ import { ApprovalCard } from "../room/ApprovalCard";
 import { SummaryTurnCard } from "./SummaryTurnCard";
 import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 import { getAgentHostId } from "../../lib/paseo/multi-host-client";
+import { distanceFromBottom, nextPinned } from "../../lib/scroll-pin";
 import {
   Sparkles,
   ArrowDown,
@@ -280,21 +281,32 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
     prevTimelineLengthRef.current = timeline.length;
   }, [timeline, activeAgentId, isTurnRunning, agentPendingPermissions.length]);
 
+  const lastScrollTopRef = useRef(0);
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isUp = distanceFromBottom > 100;
-    setShowScrollBottom(isUp);
-
-    // If user is near the bottom, keep them pinned.
-    // If they scrolled up > 100px, respect their position and don't auto-scroll.
-    if (distanceFromBottom <= 50) {
-      isPinnedToBottomRef.current = true;
-    } else if (distanceFromBottom > 100) {
-      isPinnedToBottomRef.current = false;
-    }
+    const sample = { scrollTop, scrollHeight, clientHeight };
+    setShowScrollBottom(distanceFromBottom(sample) > 100);
+    isPinnedToBottomRef.current = nextPinned(isPinnedToBottomRef.current, lastScrollTopRef.current, sample);
+    lastScrollTopRef.current = scrollTop;
   };
+
+  // Intention de remonter (molette ou clavier) : on relâche le collage tout de suite, sans attendre que la distance
+  // dépasse un seuil, pour ne jamais « lutter » contre l'utilisateur pendant que la réponse s'écrit.
+  useEffect(() => {
+    const viewport = scrollRef.current;
+    if (!viewport) return;
+    const onWheel = (event: WheelEvent) => { if (event.deltaY < 0) isPinnedToBottomRef.current = false; };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home") isPinnedToBottomRef.current = false;
+    };
+    viewport.addEventListener("wheel", onWheel, { passive: true });
+    viewport.addEventListener("keydown", onKeyDown);
+    return () => {
+      viewport.removeEventListener("wheel", onWheel);
+      viewport.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeAgentId]);
 
   const scrollToBottomSmooth = () => {
     isPinnedToBottomRef.current = true;
