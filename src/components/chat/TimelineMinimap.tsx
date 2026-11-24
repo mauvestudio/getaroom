@@ -14,13 +14,15 @@ interface Props {
   contentRef: RefObject<HTMLDivElement | null>;
   /** Change quand la timeline change (longueur, mode résumé…) : déclenche une nouvelle mesure. */
   revision: unknown;
+  /** Appelé avant un saut : le suivi automatique ne doit pas ramener la conversation en bas. */
+  onJump?: () => void;
 }
 
 /**
  * Historique visuel : un trait par message envoyé, le message en cours de lecture en surbrillance,
  * aperçu au survol et saut direct au clic. Remplace la barre de défilement.
  */
-export function TimelineMinimap({ viewportRef, contentRef, revision }: Props) {
+export function TimelineMinimap({ viewportRef, contentRef, revision, onJump }: Props) {
   const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [active, setActive] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -73,7 +75,7 @@ export function TimelineMinimap({ viewportRef, contentRef, revision }: Props) {
     };
   }, [viewportRef, contentRef, measure, updateActive, revision]);
 
-  if (anchors.length < 2) return null;
+  if (anchors.length === 0) return null;
 
   const start = anchors.length > MAX_TICKS ? Math.max(0, Math.min(anchors.length - MAX_TICKS, active - Math.floor(MAX_TICKS / 2))) : 0;
   const visible = anchors.slice(start, start + MAX_TICKS);
@@ -82,7 +84,8 @@ export function TimelineMinimap({ viewportRef, contentRef, revision }: Props) {
     const viewport = viewportRef.current;
     const anchor = anchors[index];
     if (!viewport || !anchor) return;
-    viewport.scrollTo({ top: Math.max(0, anchor.top - 24), behavior: "smooth" });
+    onJump?.();
+    viewport.scrollTo({ top: Math.max(0, anchor.top - 24), behavior: "auto" });
   };
 
   return (

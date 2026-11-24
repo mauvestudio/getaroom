@@ -314,7 +314,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
   return (
     <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
       {/* Scrollable Container with Shadcn ScrollArea */}
-      {visualHistory && <TimelineMinimap viewportRef={scrollRef} contentRef={contentRef} revision={`${timeline.length}:${summaryMode}`} />}
+      {visualHistory && <TimelineMinimap viewportRef={scrollRef} contentRef={contentRef} revision={`${activeAgentId}:${timeline.length}:${summaryMode}`} onJump={() => { isPinnedToBottomRef.current = false; }} />}
       <ScrollArea
         type="auto"
         hideScrollbar

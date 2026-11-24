@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, FileText, History, LayoutGrid } from "lucide-react";
 import { useRoom } from "../../context/RoomContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
@@ -22,9 +22,14 @@ import { TheRoomCanvas } from "./TheRoomCanvas";
 import { VisualHistoryButton } from "../chat/VisualHistoryButton";
 import { useAgentHistory } from "../../lib/useAgentHistory";
 import type { HistorySession } from "../../lib/paseo/agent-history";
+import type { AgentSnapshot } from "../../lib/paseo/types";
+import type { NewSessionOptions } from "../../context/WorkspaceContext";
 import { ErrorBoundary } from "../ui/error-boundary";
 
-function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: string | null }) {
+/** ⌘N dans Room : ouvre un nouveau fil pour l'agent affiché. */
+export const ROOM_NEW_THREAD_EVENT = "getaroom:room-new-thread";
+
+function PaseoConversation({ agent, activeId, focusKey, onCreated }: { agent: PublicAgent; activeId: string | null; focusKey: number; onCreated: (session: AgentSnapshot) => void }) {
   const { providers, models, setActiveAgentId, setActiveWorkspaceId } = useWorkspace();
   const { sessionsOf } = useRoom();
   const provider = agent.paseo.provider;
@@ -53,12 +58,13 @@ function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: 
     // newSessionOptions below carries the defaults for a new session.
   }, [active?.id, active?.workspaceId, agent.paseo.workspaceId, setActiveAgentId, setActiveWorkspaceId]);
 
-  const newSessionOptions = provider ? {
+  const newSessionOptions: NewSessionOptions | undefined = provider ? {
     provider,
     model: defaultModel,
     hostId: agent.paseo.hostId,
     workspaceId: agent.paseo.workspaceId,
     reasoning: agent.paseo.reasoning,
+    onCreated,
     preamble: [`Rôle : ${agent.name} — ${agent.role}`, agent.paseo.instructions?.trim()].filter(Boolean).join("\n"),
   } : undefined;
   return <div className="flex min-h-0 flex-1 flex-col">
@@ -67,7 +73,7 @@ function PaseoConversation({ agent, activeId }: { agent: PublicAgent; activeId: 
       <p className="max-w-sm text-xs text-muted-foreground">La session Paseo sera créée automatiquement à l’envoi de ton premier message.</p>
       {!available && <p role="status" className="text-xs text-muted-foreground">Aucun provider ACP actif n’est associé à cet agent pour le moment.</p>}
     </div>}
-    {(active || available) && <PromptComposer modelProvider={provider} newSessionOptions={active ? undefined : newSessionOptions} />}
+    {(active || available) && <PromptComposer modelProvider={provider} newSessionOptions={active ? undefined : newSessionOptions} focusKey={focusKey} />}
   </div>;
 }
 
@@ -89,12 +95,12 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   useEffect(() => {
     if (historyOpen && archived.length === 0 && hasMore && !historyLoading && !isLoadingMore) void loadMore();
   }, [historyOpen, archived.length, hasMore, historyLoading, isLoadingMore, loadMore]);
-  const { viewMode } = useSessionView();
+  const { viewMode, setViewMode } = useSessionView();
   const { setMode } = useMode();
   const status = statusOf(agent);
   const [docsOpen, setDocsOpen] = useState(false);
   const [draft, setDraft] = useState(false);
-  const draftBaselineIds = useRef<Set<string> | null>(null);
+  const [focusKey, setFocusKey] = useState(0);
   const sessions = sessionsOf(agent);
   const pending = approvalsOf(agent);
   const items: ThreadItem[] = useMemo(() => [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((s) => ({
@@ -107,16 +113,22 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
   const providerModels = models.filter((model) => model.agentProvider === agent.paseo.provider);
   const modelLabel = activeSession?.model || agent.paseo.model || providerModels[0]?.id;
   const activeAgents = agents.filter((candidate) => statusOf(candidate) !== "idle").length;
+  // Un nouveau fil ramène toujours à la vue Discussion (sinon Terminal / The Room restent au premier plan
+  // et le clic semble ne rien faire) et place le curseur dans le composer.
+  const newThread = useCallback(() => {
+    setDraft(true);
+    setThreadId(agent.id, null);
+    setViewMode("discussion");
+    setFocusKey((value) => value + 1);
+  }, [agent.id, setThreadId, setViewMode]);
+  const selectThread = (id: string) => { setDraft(false); setThreadId(agent.id, id); };
+  // La session renvoyée par Paseo à l'envoi du premier message devient le fil actif,
+  // même si d'autres fils de l'agent arrivent entre-temps.
+  const onCreated = useCallback((session: AgentSnapshot) => { setThreadId(agent.id, session.id); setDraft(false); }, [agent.id, setThreadId]);
   useEffect(() => {
-    if (!draft || !draftBaselineIds.current) return;
-    const created = sessions.find((session) => !draftBaselineIds.current?.has(session.id));
-    if (!created) return;
-    draftBaselineIds.current = null;
-    setThreadId(agent.id, created.id);
-    setDraft(false);
-  }, [draft, sessions, agent.id, setThreadId]);
-  const newThread = () => { draftBaselineIds.current = new Set(sessions.map((session) => session.id)); setDraft(true); setThreadId(agent.id, null); };
-  const selectThread = (id: string) => { draftBaselineIds.current = null; setDraft(false); setThreadId(agent.id, id); };
+    window.addEventListener(ROOM_NEW_THREAD_EVENT, newThread);
+    return () => window.removeEventListener(ROOM_NEW_THREAD_EVENT, newThread);
+  }, [newThread]);
   const resume = async (session: HistorySession) => {
     setResumingId(session.id);
     setResumeError("");
@@ -160,11 +172,11 @@ export function AgentSpace({ agent }: { agent: PublicAgent }) {
       {hasMore && archived.length > 0 && <PressButton disabled={isLoadingMore} onPress={() => void loadMore()} className="mt-1 w-full rounded-md py-1.5 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-50">Charger plus</PressButton>}
     </section>}
     <div className="flex min-h-0 flex-1">
-      <ThreadRail layout="rail" items={items} activeId={activeId} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
+      <ThreadRail layout="rail" items={items} activeId={activeId} draft={draft} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <ThreadRail layout="chips" items={items} activeId={activeId} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
+        <ThreadRail layout="chips" items={items} activeId={activeId} draft={draft} accent={agent.accentColor} onSelect={selectThread} onNew={newThread} />
         <div className={cn("min-h-0 flex-1 flex-col", viewMode === "discussion" ? "flex" : "hidden")}>
-          <PaseoConversation agent={agent} activeId={activeId} />
+          <PaseoConversation agent={agent} activeId={activeId} focusKey={focusKey} onCreated={onCreated} />
         </div>
         <div className={cn("min-h-0 flex-1", viewMode === "terminal" ? "flex" : "hidden")}>
           <RoomTerminalView agent={agent} threadId={activeId} />

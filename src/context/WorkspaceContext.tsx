@@ -53,6 +53,16 @@ import { getAgentHostId } from "../lib/paseo/multi-host-client";
 
 export type ActiveTabKind = "agent" | "terminal" | "changes";
 
+export interface NewSessionOptions {
+  provider: string;
+  model?: string;
+  workspaceId?: string;
+  hostId?: string;
+  preamble?: string;
+  reasoning?: string;
+  onCreated?: (session: AgentSnapshot) => void;
+}
+
 export interface WorkspaceTabItem {
   id: string;
   kind: ActiveTabKind;
@@ -175,7 +185,7 @@ interface WorkspaceContextType {
     options?: {
       activeTurnBehavior?: ActiveTurnBehavior;
       agentId?: string;
-      newSession?: { provider: string; model?: string; workspaceId?: string; hostId?: string; preamble?: string; reasoning?: string };
+      newSession?: NewSessionOptions;
     },
   ) => Promise<void>;
   createSession: (initialPrompt?: string, targetWorkspaceId?: string, images?: ImageAttachment[], provider?: string, model?: string, hostId?: string, reasoning?: string) => Promise<AgentSnapshot | null>;
@@ -231,6 +241,7 @@ interface WorkspaceContextType {
   // Panneau droit Paseo : fichiers / modifications
   rightPanelOpen: boolean;
   setRightPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  toggleRightPanel: () => void;
   rightPanelTab: "files" | "changes";
   setRightPanelTab: React.Dispatch<React.SetStateAction<"files" | "changes">>;
 }
@@ -360,6 +371,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const activeAgentConnection = activeAgentId ? getHostState(getAgentHostId(activeAgentId)) : undefined;
   const initialAgentSelectionRef = useRef(true);
   const agentListRequestRef = useRef(0);
+  const providerListRequestRef = useRef(0);
   const [isNewSessionDraft, setIsNewSessionDraft] = useState(false);
   const newSessionDraftRef = useRef(false);
 
@@ -1021,9 +1033,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   // Refresh providers & models
   const refreshProviders = useCallback(async () => {
     if (client.getState() !== "connected") return;
+    const request = ++providerListRequestRef.current;
     try {
       const res = await client.getProvidersSnapshot();
-      if (!res) return;
+      if (!res || request !== providerListRequestRef.current) return;
 
       const compact = res.compactSnapshot || res.snapshot || res;
       const providerEntries = compact.entries || res.entries || [];
@@ -1203,10 +1216,11 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     void (async () => {
       if (connectionState === "connected") await refreshWorkspaces();
+      if (!cancelled) await refreshProviders();
       if (!cancelled) await refreshAgents();
     })();
     return () => { cancelled = true; };
-  }, [connectedHostsKey, connectionState, refreshWorkspaces, refreshAgents]);
+  }, [connectedHostsKey, connectionState, refreshWorkspaces, refreshProviders, refreshAgents]);
 
   // When active workspace changes
   useEffect(() => {
@@ -2066,6 +2080,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [client, refreshAgents, refreshTerminals, activeTab, workspaceTabs, setActiveTab, setActiveAgentId, assignHistorySession],
   );
 
+  /** Affiche ou masque le panneau de droite (bouton PanelRight et ⌘E, comme Paseo). */
+  const toggleRightPanel = useCallback(() => {
+    const changesActive = activeTab?.kind === "changes";
+    if (rightPanelOpen || changesActive) {
+      setRightPanelOpen(false);
+      if (changesActive && activeTab) void closeTab(activeTab);
+    } else {
+      setRightPanelOpen(true);
+    }
+  }, [activeTab, closeTab, rightPanelOpen]);
+
   const openChangesTab = useCallback(() => {
     setRightPanelTab("changes");
     setRightPanelOpen(true);
@@ -2375,7 +2400,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     options?: {
       activeTurnBehavior?: ActiveTurnBehavior;
       agentId?: string;
-      newSession?: { provider: string; model?: string; workspaceId?: string; hostId?: string; preamble?: string; reasoning?: string };
+      newSession?: NewSessionOptions;
     },
   ) => {
     if (options?.newSession) {
@@ -2384,11 +2409,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         options.newSession.workspaceId,
         images,
         options.newSession.provider,
-        options.newSession.model || selectedModel,
+        options.newSession.model,
         options.newSession.hostId,
         options.newSession.reasoning,
       );
-      if (!created) throw new Error("La session ACP n’a pas pu être créée.");
+      if (!created) throw new Error(lastCreateErrorRef.current || "La session n’a pas pu être créée.");
+      options.newSession.onCreated?.(created);
       return;
     }
     let targetAgentId = options?.agentId || activeAgentId;
@@ -2396,7 +2422,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     if (!targetAgentId) {
       const created = await createSession(text, undefined, images);
       if (created) return;
-      throw new Error("No active session to send message to");
+      throw new Error(lastCreateErrorRef.current || "La session n’a pas pu être créée.");
     }
 
     const isDebugRunning =
@@ -2538,6 +2564,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isTurnRunning, activeAgentId, drainNextFollowup]);
 
+  const lastCreateErrorRef = useRef<string | null>(null);
   const createSession = useCallback(async (
     initialPrompt?: string,
     targetWorkspaceId?: string,
@@ -2569,6 +2596,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
+    lastCreateErrorRef.current = null;
     try {
       const providerHostId = hostOverride || (providerOverride ? (client as any).getProviderHostId?.(providerOverride) : "local");
       const remoteProvider = Boolean(providerOverride && providerHostId && providerHostId !== "local");
@@ -2607,21 +2635,35 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       }
 
       const messageId = `msg_${crypto.randomUUID()}`;
-      const launchModel = modelOverride || (providerOverride
-        ? models.find((model) => model.agentProvider === providerOverride)?.id || selectedModel
-        : selectedModel);
-      const canonicalModel = resolveCanonicalModelId(launchModel, models);
-      if (providerOverride && models.some((model) => model.id === canonicalModel && model.agentProvider === providerOverride)) {
+      const providerKey = providerOverride?.toLocaleLowerCase();
+      const providerModels = providerKey
+        ? models.filter((model) => model.agentProvider?.toLocaleLowerCase() === providerKey)
+        : [];
+      const launchModel = providerOverride
+        ? (modelOverride || providerModels[0]?.id || undefined)
+        : (modelOverride || selectedModel);
+      const canonicalModel = launchModel
+        ? resolveCanonicalModelId(launchModel, providerModels.length > 0 ? providerModels : models)
+        : undefined;
+      if (providerOverride && canonicalModel && providerModels.some((model) => model.id === canonicalModel)) {
         setSelectedModelState(canonicalModel);
       }
+      const launchModelDefinition = canonicalModel
+        ? (providerModels.find((model) => model.id === canonicalModel) || models.find((model) => model.id === canonicalModel))
+        : undefined;
+      const resolvedThinkingEffort = providerOverride
+        ? (launchModelDefinition?.reasoningSupported || (launchModelDefinition?.thinkingOptions && launchModelDefinition.thinkingOptions.length > 0)
+            ? (reasoningOverride ?? thinkingEffort)
+            : undefined)
+        : (reasoningOverride ?? thinkingEffort);
       const res = await client.createAgent({
         hostId: providerHostId,
         workspaceId: resolvedWorkspaceId || "",
         cwd,
         provider: providerOverride || selectedModelDefinition?.agentProvider || "opencode",
         model: canonicalModel,
-        mode: selectedMode,
-        thinkingEffort: reasoningOverride ?? thinkingEffort,
+        mode: providerOverride ? undefined : selectedMode,
+        thinkingEffort: resolvedThinkingEffort,
         initialPrompt,
         clientMessageId: messageId,
         images,
@@ -2675,6 +2717,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return null;
     } catch (err) {
       console.error("[WorkspaceProvider] createAgent error:", err);
+      lastCreateErrorRef.current = err instanceof Error ? err.message : String(err);
       return null;
     }
   }, [
@@ -3126,6 +3169,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
         rightPanelOpen,
         setRightPanelOpen,
+        toggleRightPanel,
         rightPanelTab,
         setRightPanelTab,
       }}

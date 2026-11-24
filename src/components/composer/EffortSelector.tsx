@@ -4,15 +4,21 @@ import { Popover, PopoverTrigger, PopoverContent } from "../ui/popover";
 import { Brain, ChevronDown, Check } from "lucide-react";
 import { PressButton } from "../ui/button";
 
-export function EffortSelector({ value, onSelect, modelId, quiet = false }: { value?: string; onSelect?: (effort: string) => void; modelId?: string; quiet?: boolean } = {}) {
+export function EffortSelector({ providerFilter, value, onSelect, modelId, quiet = false }: { providerFilter?: string; value?: string; onSelect?: (effort: string) => void; modelId?: string; quiet?: boolean } = {}) {
   const { models, selectedModel, thinkingEffort, setThinkingEffort } = useWorkspace();
-  const effectiveModel = modelId || selectedModel;
+  const providerKey = providerFilter?.toLocaleLowerCase();
+  const candidateModels = providerKey ? models.filter((m) => m.agentProvider?.toLocaleLowerCase() === providerKey) : models;
+  const effectiveModel = modelId || (providerFilter ? candidateModels[0]?.id || "" : selectedModel);
   const effectiveEffort = value || thinkingEffort;
   const [isOpen, setIsOpen] = useState(false);
 
+  if (providerFilter && candidateModels.length === 0) {
+    return null;
+  }
+
   const activeModel =
-    models.find((m) => m.id === effectiveModel) ||
-    models.find((m) => m.id.endsWith(`/${effectiveModel}`));
+    candidateModels.find((m) => m.id === effectiveModel) ||
+    (effectiveModel ? candidateModels.find((m) => m.id.endsWith(`/${effectiveModel}`)) : undefined);
 
   const options =
     activeModel?.thinkingOptions && activeModel.thinkingOptions.length > 0

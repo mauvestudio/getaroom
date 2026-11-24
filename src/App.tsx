@@ -31,7 +31,7 @@ import "./index.css";
 
 function RoomMain() {
   const { selectedAgent } = useRoom();
-  return selectedAgent ? <AgentSpace agent={selectedAgent} /> : <RoomHome />;
+  return selectedAgent ? <AgentSpace key={selectedAgent.id} agent={selectedAgent} /> : <RoomHome />;
 }
 
 const PANEL_WIDTH_KEY = "getaroom-right-panel-width";

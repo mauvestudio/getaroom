@@ -368,7 +368,7 @@
   "Remote GitHub configuré": "Remote GitHub configuré",
   "Les changements locaux ne sont pas encore publiés.": "Les changements locaux ne sont pas encore publiés.",
   "Publier vers GitHub ?": "Publier vers GitHub ?",
-  "Créer une PR sur GitHub ?": "Créer une PR sur GitHub ?",
+  "Créer une PR sur GitHub": "Créer une PR sur GitHub",
   "Les fichiers locaux non commités ne seront pas publiés. Vérifie que ce dépôt est bien le tien avant de continuer.": "Les fichiers locaux non commités ne seront pas publiés. Vérifie que ce dépôt est bien le tien avant de continuer.",
   "Confirmer le push": "Confirmer le push",
   "Confirmer la PR": "Confirmer la PR",

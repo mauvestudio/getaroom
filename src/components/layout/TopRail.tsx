@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { VisualHistoryButton } from "../chat/VisualHistoryButton";
-import { Code2, ChevronDown, GitCommit, LoaderCircle, Menu, Play } from "lucide-react";
+import { Code2, ChevronDown, GitCommit, LoaderCircle, Menu, PanelRight, Play } from "lucide-react";
+import { useSessionView } from "../../context/SessionViewContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { usePaseo } from "../../context/PaseoContext";
 import { cn } from "../../lib/utils";
@@ -27,7 +28,13 @@ export function TopRail({ onToggleSidebar }: TopRailProps) {
     commitGitChanges,
     refreshGitStatus,
     gitStatus,
+    activeTab,
+    rightPanelOpen,
+    toggleRightPanel,
   } = useWorkspace();
+  const { viewMode } = useSessionView();
+  const panelAvailable = Boolean(activeAgent) && viewMode === "discussion";
+  const panelExpanded = rightPanelOpen || activeTab?.kind === "changes";
   const { client } = usePaseo();
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
@@ -185,6 +192,22 @@ export function TopRail({ onToggleSidebar }: TopRailProps) {
           <GitCommit className="h-3.5 w-3.5 pointer-events-none" />
           <span className="hidden sm:inline">Committer</span>
         </PressButton>
+
+        {panelAvailable && (
+          <PressButton
+            type="button"
+            onPress={toggleRightPanel}
+            aria-pressed={panelExpanded}
+            aria-label={panelExpanded ? "Masquer le panneau latéral" : "Afficher le panneau latéral"}
+            title={panelExpanded ? "Masquer le panneau latéral (⌘E)" : "Afficher le panneau latéral (⌘E)"}
+            className={cn(
+              "hidden h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-foreground lg:flex",
+              panelExpanded ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            <PanelRight className="h-4 w-4 pointer-events-none" />
+          </PressButton>
+        )}
       </div>
 
       <Dialog open={commitOpen} onOpenChange={setCommitOpen}>

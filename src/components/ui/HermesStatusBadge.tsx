@@ -21,11 +21,12 @@ export function HermesStatusBadge({
   compact?: boolean;
   className?: string;
 }) {
-  const { getHostState, reconnectHost } = usePaseo();
+  const { getHostState, reconnectHost, reconnect, hosts } = usePaseo();
   const { providers, refreshProviders } = useWorkspace();
   const provider = providers.find((item) => item.id.toLocaleLowerCase() === providerId?.toLocaleLowerCase());
   const providerAvailable = Boolean(provider?.enabled) && ["available", "active", "ready", "connected", "running"].includes(provider?.status.toLocaleLowerCase() || "");
-  const resolvedHostId = hostId || provider?.hostId || "local";
+  const fallbackRemoteHostId = hosts.find((item) => !item.local && item.enabled)?.id;
+  const resolvedHostId = hostId || provider?.hostId || fallbackRemoteHostId || "local";
   const connectionState = getHostState(resolvedHostId);
   const online = connectionState === "connected" && Boolean(providerId) && providerAvailable;
   const hint = online ? ONLINE_HINT : OFFLINE_HINT;
@@ -63,6 +64,7 @@ export function HermesStatusBadge({
       aria-label={`${hint}. Actualiser la connexion et les fournisseurs`}
       onPress={() => {
         if (connectionState !== "connected") reconnectHost(resolvedHostId);
+        else reconnect();
         void refreshProviders();
         window.setTimeout(() => void refreshProviders(), connectionState === "connected" ? 350 : 1200);
       }}

@@ -8,6 +8,7 @@ import { useWorkspace } from "../../context/WorkspaceContext";
 import { tr } from "../../i18n/I18nContext";
 import { isTauriWindow } from "../../lib/useWindowDragRegion";
 import type { PendingPermission } from "../../lib/paseo/types";
+import { ROOM_NEW_THREAD_EVENT } from "../room/AgentSpace";
 
 export const APPROVAL_NOTIFICATIONS_KEY = "getaroom-approval-notifications";
 export const ROOM_FOCUS_EVENT = "getaroom:room-focus";
@@ -48,15 +49,16 @@ function describeRequest(permission: PendingPermission): string {
   return [request.title || request.name, command ? `$ ${command.slice(0, 80)}` : file].filter(Boolean).join(" · ");
 }
 
-/** ⌘1/2/3/4 : Open Space, Room, Dev, The Room · ⌘⇧A : prochaine validation en attente. */
+/** ⌘1/2/3/4 : Open Space, Room, Dev, The Room · ⌘N : nouvelle session · ⌘⇧A : prochaine validation en attente. */
 export function GlobalShortcuts() {
   const { mode, setMode } = useMode();
-  const { agents, sessionsOf, openAgent, setThreadId } = useRoom();
-  const { pendingPermissions, setActiveAgentId } = useWorkspace();
-  const { setViewMode } = useSessionView();
+  const { agents, sessionsOf, openAgent, setThreadId, selectedAgentId } = useRoom();
+  const { pendingPermissions, setActiveAgentId, toggleRightPanel, activeAgent, createAgentTab } = useWorkspace();
+  const { viewMode, setViewMode } = useSessionView();
   const cursor = useRef(0);
-  const latest = useRef({ mode, setMode, agents, sessionsOf, openAgent, setThreadId, pendingPermissions, setActiveAgentId, setViewMode });
-  latest.current = { mode, setMode, agents, sessionsOf, openAgent, setThreadId, pendingPermissions, setActiveAgentId, setViewMode };
+  const snapshot = { mode, setMode, agents, sessionsOf, openAgent, setThreadId, selectedAgentId, pendingPermissions, setActiveAgentId, setViewMode, viewMode, toggleRightPanel, activeAgent, createAgentTab };
+  const latest = useRef(snapshot);
+  latest.current = snapshot;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -66,6 +68,26 @@ export function GlobalShortcuts() {
       if (!event.shiftKey && MODE_SHORTCUTS[event.code]) {
         event.preventDefault();
         state.setMode(MODE_SHORTCUTS[event.code]!);
+        return;
+      }
+
+      if (!event.shiftKey && event.code === "KeyN") {
+        if (state.mode === "room" && state.selectedAgentId) {
+          event.preventDefault();
+          window.dispatchEvent(new CustomEvent(ROOM_NEW_THREAD_EVENT));
+          return;
+        }
+        if (state.mode === "studio") {
+          event.preventDefault();
+          void state.createAgentTab();
+          return;
+        }
+      }
+
+      // ⌘E : panneau de droite, même raccourci que Paseo (vue Discussion du mode Dev).
+      if (!event.shiftKey && event.code === "KeyE" && state.mode === "studio" && state.viewMode === "discussion" && state.activeAgent) {
+        event.preventDefault();
+        state.toggleRightPanel();
         return;
       }
 

@@ -489,5 +489,13 @@
   "Plus anciens": "Older",
   "Impossible de reprendre cette session.": "Could not resume this session.",
   "Impossible de reprendre ce fil.": "Could not resume this thread.",
-  "Aucun hôte connecté n’a pu charger l’historique.": "No connected host could load history."
+  "Aucun hôte connecté n’a pu charger l’historique.": "No connected host could load history.",
+  "Masquer le panneau latéral": "Hide side panel",
+  "Afficher le panneau latéral": "Show side panel",
+  "Masquer le panneau latéral (⌘E)": "Hide side panel (⌘E)",
+  "Afficher le panneau latéral (⌘E)": "Show side panel (⌘E)",
+  "Afficher ou masquer le panneau latéral": "Show or hide side panel",
+  "La session n’a pas pu être créée.": "The session could not be created.",
+  "Le message n’a pas pu être envoyé.": "The message could not be sent.",
+  "Brouillon": "Draft"
 }

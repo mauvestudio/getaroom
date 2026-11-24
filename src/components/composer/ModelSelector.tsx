@@ -9,14 +9,20 @@ import { PressButton } from "../ui/button";
 
 export function ModelSelector({ providerFilter, value, onSelect, quiet = false }: { providerFilter?: string; value?: string; onSelect?: (model: string) => void; quiet?: boolean }) {
   const { models, selectedModel, setSelectedModel } = useWorkspace();
-  const effectiveModel = value || selectedModel;
-  const availableModels = providerFilter ? models.filter((m) => m.agentProvider === providerFilter) : models;
+  const providerKey = providerFilter?.toLocaleLowerCase();
+  const availableModels = providerKey ? models.filter((m) => m.agentProvider?.toLocaleLowerCase() === providerKey) : models;
+  const effectiveModel = value || (providerFilter ? availableModels[0]?.id || "" : selectedModel);
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  if (providerFilter && availableModels.length === 0 && !effectiveModel) {
+    return null;
+  }
+
   const current =
     availableModels.find((m) => m.id === effectiveModel) ||
-    availableModels.find((m) => m.id.endsWith(`/${effectiveModel}`)) || availableModels[0] || {
+    (effectiveModel ? availableModels.find((m) => m.id.endsWith(`/${effectiveModel}`)) : undefined) ||
+    availableModels[0] || {
       id: effectiveModel,
       name: effectiveModel.replace(/^plexus\//, ""),
       displayName: effectiveModel.replace(/^plexus\//, ""),

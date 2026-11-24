@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { useWorkspace } from "../../context/WorkspaceContext";
+import { useWorkspace, type NewSessionOptions } from "../../context/WorkspaceContext";
 import { useI18n } from "../../i18n/I18nContext";
 import { cn } from "../../lib/utils";
 import { modeLabel } from "../../lib/mode-labels";
@@ -89,7 +89,7 @@ function getModeIcon(modeId: string) {
   }
 }
 
-export function PromptComposer({ initialValue = "", modelProvider, newSessionOptions }: { initialValue?: string; modelProvider?: string; newSessionOptions?: { provider: string; model?: string; workspaceId?: string; hostId?: string; preamble?: string; reasoning?: string } }) {
+export function PromptComposer({ initialValue = "", modelProvider, newSessionOptions, focusKey }: { initialValue?: string; modelProvider?: string; newSessionOptions?: NewSessionOptions; focusKey?: number }) {
   const { t } = useI18n();
   const {
     sendMessage,
@@ -117,7 +117,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
   const isDebugRunning =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("debugRunning");
-  const effectiveIsTurnRunning = isTurnRunning || isDebugRunning;
+  const effectiveIsTurnRunning = !newSessionOptions && (isTurnRunning || isDebugRunning);
 
   const activeAgentQueuedFollowups = (queuedFollowups || []).filter(
     (q) => !activeAgentId || q.agentId === activeAgentId,
@@ -155,6 +155,12 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     setDraftModel(newSessionOptions?.model || "");
     setDraftReasoning(newSessionOptions?.reasoning || "medium");
   }, [newSessionOptions?.provider, newSessionOptions?.model, newSessionOptions?.reasoning]);
+
+  useEffect(() => {
+    if (focusKey && focusKey > 0) {
+      textareaRef.current?.focus();
+    }
+  }, [focusKey]);
 
   useEffect(() => () => speechRef.current?.stop(), []);
 
@@ -306,9 +312,11 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
   const hasContent = Boolean(prompt.trim() || pendingImages.length > 0);
   const isSteeringActive = effectiveIsTurnRunning && hasContent;
 
+  const creatingSessionRef = useRef(false);
   const handleSend = async (activeTurnBehavior?: ActiveTurnBehavior) => {
     const trimmed = prompt.trim();
-    if (!trimmed && pendingImages.length === 0) return;
+    if (creatingSessionRef.current || (!trimmed && pendingImages.length === 0)) return;
+    if (newSessionOptions) creatingSessionRef.current = true;
 
     const imagesToSend = pendingImages.length > 0 ? [...pendingImages] : undefined;
     const textToSend = trimmed || (imagesToSend?.length ? "Décris cette image" : "");
@@ -326,6 +334,12 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
       });
     } catch (err) {
       console.error("[PromptComposer] Send failed:", err);
+      // Le message n'est jamais perdu : il revient dans le champ, avec la raison de l'échec.
+      setPrompt((current) => current || trimmed);
+      if (imagesToSend) setPendingImages((current) => current.length ? current : imagesToSend);
+      setImageError(err instanceof Error ? err.message : "Le message n’a pas pu être envoyé.");
+    } finally {
+      creatingSessionRef.current = false;
     }
   };
 
@@ -349,7 +363,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     return <Terminal className="w-3.5 h-3.5 text-primary" />;
   };
 
-  const modeSlashCommands: SlashCommandItem[] = canChangeMode
+  const modeSlashCommands: SlashCommandItem[] = !newSessionOptions && canChangeMode
     ? modes.map((m) => ({
         name: m.id.toLowerCase(),
         description: m.description || `Passer en ${modeLabel(m.name)}`,
@@ -681,25 +695,25 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
           </div>
         )}
 
-        {/* Pending Image Attachments Preview Strip */}
+        {/* Pending Image Attachments Preview Strip - Style Paseo */}
         {pendingImages.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 p-1 pt-0">
+          <div className="flex flex-wrap items-center gap-2 px-2 pb-1">
             {pendingImages.map((img, idx) => (
               <div
                 key={idx}
-                className="group relative flex items-center gap-2 px-2 py-1.5 rounded-xl border border-border/80 bg-muted/60 hover:bg-muted text-card-foreground transition-all max-w-[220px]"
+                className="group relative flex items-center gap-2 rounded border border-border bg-card px-2 py-1.5 text-foreground"
               >
                 <img
                   src={`data:${img.mimeType};base64,${img.data}`}
                   alt={img.name || `Image ${idx + 1}`}
-                  className="w-8 h-8 rounded-md object-cover border border-border/40 shrink-0 bg-background"
+                  className="w-8 h-8 rounded border border-border/40 object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-medium truncate text-foreground">
+                  <div className="text-[11px] font-medium truncate">
                     {img.name || `Image ${idx + 1}`}
                   </div>
                   {img.size && (
-                    <div className="text-[10px] text-muted-foreground font-mono">
+                    <div className="text-[10px] text-muted-foreground">
                       {(img.size / 1024).toFixed(0)} KB
                     </div>
                   )}
@@ -707,8 +721,8 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                 <PressButton
                   type="button"
                   onPress={() => removePendingImage(idx)}
-                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/80 cursor-pointer transition-colors"
-                  title="Retirer l'image"
+                  className="p-1 rounded-md bg-card border border-border hover:bg-muted/60 hover:text-muted-foreground"
+                  aria-label="Supprimer"
                 >
                   <X className="w-3 h-3" />
                 </PressButton>
@@ -749,7 +763,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
             <PressButton
               type="button"
               onPress={() => fileInputRef.current?.click()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground touch-manipulation"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors touch-manipulation"
               title={
                 isVisionCapable
                   ? "Joindre une image (modèle avec vision)"
@@ -757,7 +771,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
               }
               aria-label="Joindre une image"
             >
-              <Plus className="w-4 h-4" />
+              <Paperclip className="w-4 h-4 text-muted-foreground" />
             </PressButton>
 
             {/* Mode, Model & Effort: hidden on mobile during active turn with text so steering controls fit */}
@@ -768,7 +782,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
               )}
             >
               {/* Show a mode picker only when the provider can actually change modes. */}
-              {modes.length > 1 && canChangeMode && (
+              {!newSessionOptions && modes.length > 1 && canChangeMode && (
                 <>
                   {currentMode && (
                     <Popover open={isModeMenuOpen} onOpenChange={setIsModeMenuOpen}>
@@ -831,7 +845,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
 
               {/* Model & Effort */}
               <ModelSelector providerFilter={modelProvider} value={newSessionOptions ? draftModel : undefined} onSelect={newSessionOptions ? setDraftModel : undefined} quiet />
-              <EffortSelector value={newSessionOptions ? draftReasoning : undefined} onSelect={newSessionOptions ? setDraftReasoning : undefined} modelId={newSessionOptions ? draftModel : undefined} quiet />
+              <EffortSelector providerFilter={modelProvider} value={newSessionOptions ? draftReasoning : undefined} onSelect={newSessionOptions ? setDraftReasoning : undefined} modelId={newSessionOptions ? draftModel : undefined} quiet />
             </div>
             <PressButton type="button" onPress={() => { setSlashFilter(""); textareaRef.current?.focus(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground" title={t("Commandes et skills")} aria-label={t("Commandes et skills")}><Zap className="h-4 w-4" /></PressButton>
             <PressButton type="button" onPress={() => setSummaryMode((value) => !value)} aria-pressed={summaryMode} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-muted/60 ${summaryMode ? "text-foreground" : "text-muted-foreground"}`} title={t("Afficher ou masquer le résumé d’activité")} aria-label={t("Afficher ou masquer le résumé d’activité")}><ListTodo className="h-4 w-4" /></PressButton>

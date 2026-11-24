@@ -15,6 +15,7 @@ export interface ThreadItem {
 interface Props {
   items: ThreadItem[];
   activeId: string | null;
+  draft?: boolean;
   accent: string;
   onSelect: (id: string) => void;
   onNew: () => void;
@@ -23,7 +24,7 @@ interface Props {
   layout: "rail" | "chips";
 }
 
-export function ThreadRail({ items, activeId, accent, onSelect, onNew, onDelete, layout }: Props) {
+export function ThreadRail({ items, activeId, draft = false, accent, onSelect, onNew, onDelete, layout }: Props) {
   if (layout === "chips") {
     return (
       <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-3 py-2 xl:hidden">
@@ -34,6 +35,15 @@ export function ThreadRail({ items, activeId, accent, onSelect, onNew, onDelete,
         >
           <Plus className="h-4 w-4 pointer-events-none" />
         </PressButton>
+        {draft && activeId === null && (
+          <PressButton
+            onPress={onNew}
+            aria-current="page"
+            className="flex h-9 max-w-[200px] shrink-0 items-center gap-2 rounded-full bg-foreground px-3 text-xs font-medium text-background cursor-pointer touch-manipulation"
+          >
+            <span className="truncate">Nouveau fil</span>
+          </PressButton>
+        )}
         {items.map((t) => (
           <PressButton
             key={t.id}
@@ -63,7 +73,21 @@ export function ThreadRail({ items, activeId, accent, onSelect, onNew, onDelete,
         </PressButton>
       </div>
       <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
-        {items.length === 0 && <li className="px-2 py-3 text-xs text-muted-foreground">Aucun fil. Commence-en un.</li>}
+        {draft && activeId === null && (
+          <li>
+            <PressTarget
+              onPress={onNew}
+              aria-current="page"
+              className="cursor-pointer rounded-lg bg-accent/60 px-2.5 py-2 transition-colors touch-manipulation"
+            >
+              <span className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium text-foreground">Nouveau fil</span>
+              </span>
+              <span className="block text-[11px] text-muted-foreground">Brouillon</span>
+            </PressTarget>
+          </li>
+        )}
+        {items.length === 0 && !(draft && activeId === null) && <li className="px-2 py-3 text-xs text-muted-foreground">Aucun fil. Commence-en un.</li>}
         {items.map((t) => (
           <li key={t.id} className="group relative">
             <PressTarget

@@ -1,4 +1,5 @@
 import { PaseoClient } from "./client";
+import { resolveRemoteAgentTarget, type RemoteSessionEntry, type RemoteWorkspaceEntry } from "./remote-agent-target";
 import type { PaseoHost } from "./hosts";
 import type { ConnectionState } from "./types";
 
@@ -53,7 +54,7 @@ export class MultiHostPaseoClient {
   constructor() {
     this.proxy = new Proxy({} as PaseoClient, {
       get: (_target, key) => {
-        if (key === "getProviderHostId") return (provider: string) => this.providerOwners.get(provider) || "local";
+        if (key === "getProviderHostId") return this.getProviderHostId.bind(this);
         if (key === "getClientForHost") return (hostId: string) => this.entries.get(hostId)?.client;
         if (key === "on") return this.on.bind(this);
         if (key === "emit") return this.emit.bind(this);
@@ -183,6 +184,19 @@ export class MultiHostPaseoClient {
 
   disconnect() { for (const { client } of this.entries.values()) client.disconnect(); }
 
+  getProviderHostId(provider?: string): string {
+    if (!provider) return "local";
+    const key = provider.trim();
+    const direct = this.providerOwners.get(key) || this.providerOwners.get(key.toLocaleLowerCase());
+    if (direct) return direct;
+    const hasLocalProviders = [...this.providerOwners.values()].includes("local");
+    if (hasLocalProviders) {
+      const remoteHost = this.getEntries().find(({ host }) => !host.local)?.host;
+      if (remoteHost) return remoteHost.id;
+    }
+    return "local";
+  }
+
   async fetchAgents(options?: Parameters<PaseoClient["fetchAgents"]>[0]) {
     const hostId = typeof options === "object" ? options.hostId : undefined;
     const entries = this.getEntries().filter(({ host }) => !hostId || host.id === hostId);
@@ -192,9 +206,17 @@ export class MultiHostPaseoClient {
       const request = client.fetchAgents(options);
       const result = await (hostId ? request : request.catch(() => null));
       const records = Array.isArray(result?.entries) ? result.entries : Array.isArray(result?.agents) ? result.agents : [];
-      return records.map((entry: any) => entry.agent
-        ? { ...entry, agent: namespaceAgent(host, entry.agent) }
-        : namespaceAgent(host, entry));
+      return records.map((entry: any) => {
+        const rawAgent = entry.agent ?? entry;
+        const providerId = typeof rawAgent?.provider === "string" ? rawAgent.provider.trim() : "";
+        if (providerId && (!host.local || !this.providerOwners.has(providerId))) {
+          this.providerOwners.set(providerId, host.id);
+          this.providerOwners.set(providerId.toLocaleLowerCase(), host.id);
+        }
+        return entry.agent
+          ? { ...entry, agent: namespaceAgent(host, entry.agent) }
+          : namespaceAgent(host, entry);
+      });
     }));
     return { entries: results.flat() };
   }
@@ -206,7 +228,10 @@ export class MultiHostPaseoClient {
     }));
     const entries: any[] = [];
     const thinkingSets: any[] = [];
-    this.providerOwners.clear();
+    const updatedHosts = new Set(snapshots.filter((item): item is NonNullable<typeof item> => Boolean(item?.snapshot)).map((item) => item.host.id));
+    for (const [providerKey, ownerHostId] of [...this.providerOwners.entries()]) {
+      if (updatedHosts.has(ownerHostId)) this.providerOwners.delete(providerKey);
+    }
     for (const item of snapshots) {
       if (!item?.snapshot) continue;
       const compact = item.snapshot.compactSnapshot || item.snapshot.snapshot || item.snapshot;
@@ -217,7 +242,10 @@ export class MultiHostPaseoClient {
       for (const provider of providers) {
         const providerId = String(provider.provider || provider.id || "");
         if (!providerId) continue;
-        if (!this.providerOwners.has(providerId)) this.providerOwners.set(providerId, item.host.id);
+        if (!this.providerOwners.has(providerId)) {
+          this.providerOwners.set(providerId, item.host.id);
+          this.providerOwners.set(providerId.toLocaleLowerCase(), item.host.id);
+        }
         entries.push({
           ...provider,
           hostId: item.host.id,
@@ -239,24 +267,31 @@ export class MultiHostPaseoClient {
   }
 
   private async createAgent(params: Parameters<PaseoClient["createAgent"]>[0]) {
-    const hostId = params.hostId || splitRemoteId(params.workspaceId)?.hostId || "local";
+    const hostId = params.hostId || splitRemoteId(params.workspaceId)?.hostId || this.getProviderHostId(params.provider);
     const entry = this.entries.get(hostId);
     if (!entry) throw new Error("Hôte Paseo indisponible.");
-    const workspaceId = splitRemoteId(params.workspaceId)?.id ?? params.workspaceId;
+    if (!entry.host.local && entry.client.getState() !== "connected") {
+      throw new Error(`L’hôte Paseo « ${entry.host.name} » est hors ligne : vérifie la connexion avant de créer une session.`);
+    }
+    let workspaceId = splitRemoteId(params.workspaceId)?.id ?? params.workspaceId;
     let cwd = params.cwd;
     if (!cwd && !entry.host.local) {
       const { entries } = await entry.client.fetchWorkspaces();
-      const candidates = (entries ?? []) as Array<{ workspaceId?: string; workspaceDirectory?: string }>;
-      const workspace = workspaceId
-        ? candidates.find((item) => item.workspaceId === workspaceId)
-        : candidates.length === 1 ? candidates[0] : undefined;
-      cwd = workspace?.workspaceDirectory || "";
-      if (!cwd && !workspaceId) {
+      const workspaces = (entries ?? []) as RemoteWorkspaceEntry[];
+      const history = await entry.client.fetchAgentHistory({
+        sort: [{ key: "updated_at", direction: "desc" }],
+        page: { limit: 200 },
+      }).catch(() => null);
+      const sessions = (history?.entries ?? []).map((item: any) => (item.agent ?? item) as RemoteSessionEntry);
+      const request = { provider: params.provider, workspaceId: workspaceId || undefined, workspaces, sessions };
+      let target = resolveRemoteAgentTarget(request);
+      if (!target && !workspaceId) {
         const result = await entry.client.getDirectorySuggestions({ query: "", limit: 1, includeDirectories: true, includeFiles: false });
-        const directory = result.directories?.find((path) => path.startsWith("/"));
-        cwd = directory?.slice(0, directory.lastIndexOf("/")) || "";
+        target = resolveRemoteAgentTarget({ ...request, suggestedDirectories: result.directories ?? [] });
       }
-      if (!cwd) throw new Error("Paseo n’a pas fourni de dossier de travail sur l’hôte distant.");
+      if (!target) throw new Error(`Aucun dossier de travail trouvé sur ${entry.host.name} pour cet agent.`);
+      cwd = target.cwd;
+      workspaceId = target.workspaceId ?? workspaceId;
     }
     const result = await entry.client.createAgent({ ...params, workspaceId, cwd });
     return { ...result, agent: namespaceAgent(entry.host, result.agent) };

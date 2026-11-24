@@ -1,9 +1,15 @@
 import React, { useState } from "react";
-import { SessionStatusIcon } from "../ui/SessionStatusIcon";
-import { sessionVisual } from "../../lib/session-visual";
+import { GitCommit, Plus, Sparkles, Terminal, X } from "lucide-react";
 import { useWorkspace, type WorkspaceTabItem } from "../../context/WorkspaceContext";
-import { Sparkles, Terminal, GitCommit, X, Loader2, Pencil } from "lucide-react";
+import { sessionVisual } from "../../lib/session-visual";
+import { cn } from "../../lib/utils";
 import { PressButton, PressTarget } from "../ui/button";
+import { SessionStatusIcon } from "../ui/SessionStatusIcon";
+
+// Mêmes mesures que les onglets desktop de Paseo : puce de 28 px, 14 px de texte,
+// fond surface2 si active, surface1 au survol, bouton fermer en surimpression.
+const TAB_BASE = "group relative flex h-7 min-w-16 max-w-40 shrink items-center gap-1 rounded-[6px] px-2 text-sm font-normal select-none cursor-pointer touch-manipulation transition-colors";
+const ACTION = "flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-[var(--surface-1)] hover:text-foreground cursor-pointer touch-manipulation";
 
 export function WorkspaceTabsRow() {
   const {
@@ -45,56 +51,58 @@ export function WorkspaceTabsRow() {
   return (
     <div
       data-tauri-drag-region
-      className="h-9 bg-background border-b border-border/60 flex items-center justify-between px-2 gap-1 select-none shrink-0 z-10 overflow-hidden"
+      className="z-10 flex h-9 min-w-0 shrink-0 items-center overflow-hidden border-b border-border bg-[var(--surface-0)] select-none"
     >
-      {/* Tabs list */}
-      <div className="flex items-center gap-1 min-w-0 flex-1 h-full pt-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex h-full min-w-0 flex-1 items-center overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {isNewSessionDraft && (
-          <div aria-current="page" className="flex h-8 min-w-[120px] shrink-0 items-center gap-1.5 border-b-2 border-foreground px-2.5 text-xs font-medium text-foreground">
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-            <span>Nouvelle session</span>
+          <div aria-current="page" className={cn(TAB_BASE, "mx-0.5 bg-[var(--surface-2)] text-foreground")}>
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 truncate">Nouvelle session</span>
           </div>
         )}
         {workspaceTabs.map((tab) => {
-          const isActive =
-            activeTab?.kind === tab.kind && activeTab?.targetId === tab.targetId;
+          const isActive = activeTab?.kind === tab.kind && activeTab?.targetId === tab.targetId;
           const isEditing = renamingTabId === tab.id;
+          const iconClass = "h-3.5 w-3.5 shrink-0";
 
           return (
             <PressTarget
               key={tab.id}
               onPress={() => setActiveTab(tab)}
-              onDoubleClick={(e) => {
-                e.stopPropagation();
+              onDoubleClick={(event) => {
+                event.stopPropagation();
                 startRename(tab);
               }}
-              className={`group flex items-center gap-1.5 px-2 h-8 text-xs cursor-pointer transition-colors shrink-0 min-w-[72px] sm:min-w-[60px] max-w-[200px] border-b-2 touch-manipulation ${
-                isActive
-                  ? "border-foreground text-foreground font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
+              aria-current={isActive ? "page" : undefined}
               title={tab.title}
-            >
-              {/* Tab Icon & Status */}
-              {tab.kind === "agent" ? (
-                <SessionStatusIcon
-                  state={sessionVisual(
-                    allAgents.find((agent) => agent.id === tab.targetId) ?? (tab.status === "running" ? { status: "running" } : null),
-                    pendingPermissions.some((entry) => entry.agentId === tab.targetId),
-                  )}
-                  idle={<Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />}
-                />
-              ) : tab.kind === "terminal" ? (
-                <Terminal className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
-              ) : (
-                <GitCommit className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
+              className={cn(
+                TAB_BASE,
+                "mx-0.5",
+                isActive
+                  ? "bg-[var(--surface-2)] text-foreground"
+                  : "text-muted-foreground hover:bg-[var(--surface-1)]",
               )}
+            >
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                {tab.kind === "agent" ? (
+                  <SessionStatusIcon
+                    state={sessionVisual(
+                      allAgents.find((agent) => agent.id === tab.targetId) ?? (tab.status === "running" ? { status: "running" } : null),
+                      pendingPermissions.some((entry) => entry.agentId === tab.targetId),
+                    )}
+                    idle={<Sparkles className={iconClass} />}
+                  />
+                ) : tab.kind === "terminal" ? (
+                  <Terminal className={iconClass} />
+                ) : (
+                  <GitCommit className={iconClass} />
+                )}
+              </span>
 
-              {/* Title or Inline Edit Form */}
               {isEditing ? (
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
+                  onSubmit={(event) => {
+                    event.preventDefault();
                     handleSaveRename(tab);
                   }}
                   className="min-w-0 flex-1"
@@ -102,90 +110,81 @@ export function WorkspaceTabsRow() {
                   <input
                     type="text"
                     value={renamingTitle}
-                    onChange={(e) => setRenamingTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setRenamingTabId(null);
+                    onChange={(event) => setRenamingTitle(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setRenamingTabId(null);
                     }}
                     onBlur={() => handleSaveRename(tab)}
-                    className="w-full h-5 text-xs bg-background border border-primary rounded px-1 outline-none text-foreground font-medium"
+                    className="h-5 w-full rounded border border-ring bg-background px-1 text-xs text-foreground outline-none"
                     autoFocus
                   />
                 </form>
               ) : (
-                <span className="truncate text-xs min-w-0 flex-1">{tab.title}</span>
+                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
               )}
 
-              {/* Actions on hover */}
               {!isEditing && (
-                <div className="flex items-center gap-0.5 shrink-0">
-                  {tab.kind !== "changes" && (
-                    <PressButton
-                      type="button"
-                      onPress={() => {
-                        startRename(tab);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground cursor-pointer transition-opacity"
-                      title="Renommer l'onglet"
-                    >
-                      <Pencil className="w-2.5 h-2.5" />
-                    </PressButton>
+                <span
+                  className={cn(
+                    "pointer-events-none absolute inset-y-0 right-0 flex w-12 items-center justify-end rounded-r-[6px] pr-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+                    isActive
+                      ? "bg-gradient-to-r from-transparent via-[var(--surface-2)] to-[var(--surface-2)]"
+                      : "bg-gradient-to-r from-transparent via-[var(--surface-1)] to-[var(--surface-1)]",
                   )}
-
+                >
                   <PressButton
                     type="button"
                     onPress={() => {
-                      closeTab(tab);
+                      void closeTab(tab);
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground cursor-pointer transition-opacity"
+                    className="pointer-events-auto flex h-[18px] w-[18px] items-center justify-center rounded-[2px] text-muted-foreground hover:bg-[var(--surface-3)] hover:text-foreground cursor-pointer"
                     title={`Fermer ${tab.kind === "agent" ? "la session" : tab.kind === "terminal" ? "le terminal" : "les changements"}`}
+                    aria-label={`Fermer ${tab.title}`}
                   >
-                    <X className="w-3 h-3" />
+                    <X className="h-3 w-3 pointer-events-none" />
                   </PressButton>
-                </div>
+                </span>
               )}
             </PressTarget>
           );
         })}
       </div>
 
-      {/* 3 New Tab Action Buttons: Agent, Terminal, Changes */}
-      <div className="flex items-center gap-0.5 shrink-0 pl-1 border-l border-border/40 ml-1">
+      <div className="flex shrink-0 items-center gap-1 py-1 pr-2">
         <PressButton
           type="button"
           onPress={() => createAgentTab()}
-          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors touch-manipulation"
+          className={ACTION}
           title="Nouvelle session d'agent"
           aria-label="Nouvelle session d'agent"
         >
-          <Sparkles className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Plus className="h-3.5 w-3.5 pointer-events-none" />
         </PressButton>
 
         <PressButton
           type="button"
           onPress={() => createTerminalTab()}
-          className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors touch-manipulation"
+          className={ACTION}
           title="Nouveau terminal"
           aria-label="Nouveau terminal"
         >
-          <Terminal className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <Terminal className="h-3.5 w-3.5 pointer-events-none" />
         </PressButton>
 
-        {gitStatus?.isGitRepo && <PressButton
-          type="button"
-          onPress={() => openChangesTab()}
-          className={`h-7 w-7 flex items-center justify-center rounded-md cursor-pointer transition-colors relative touch-manipulation ${
-            activeTab?.kind === "changes"
-              ? "bg-accent text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent"
-          }`}
-          title="Changements git"
-          aria-label="Changements git"
-        >
-          <GitCommit className="w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-          {changedFilesCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-foreground" />
-          )}
-        </PressButton>}
+        {gitStatus?.isGitRepo && (
+          <PressButton
+            type="button"
+            onPress={() => openChangesTab()}
+            className={cn(ACTION, "relative", activeTab?.kind === "changes" && "bg-[var(--surface-2)] text-foreground")}
+            title="Changements git"
+            aria-label="Changements git"
+          >
+            <GitCommit className="h-3.5 w-3.5 pointer-events-none" />
+            {changedFilesCount > 0 && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-foreground" />
+            )}
+          </PressButton>
+        )}
       </div>
     </div>
   );
