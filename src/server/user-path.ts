@@ -86,3 +86,56 @@ export function findBinary(name: string, searchPath: string, exists: (target: st
 export function childEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   return { ...base, PATH: enrichPath(base.PATH).path };
 }
+
+/** Extrait la valeur encadrée par `mark` dans la sortie d'un shell (ignore le bruit des rc files). */
+export function extractMarked(output: string, mark: string): string | null {
+  const start = output.indexOf(mark);
+  if (start < 0) return null;
+  const from = start + mark.length;
+  const end = output.indexOf(mark, from);
+  if (end < 0) return null;
+  const value = output.slice(from, end).trim();
+  return value || null;
+}
+
+/** Ajoute à `base` les dossiers de `extra` absents, sans changer l'ordre existant. */
+export function mergePaths(base: string | undefined, extra: string | undefined): string {
+  const result = (base ?? "").split(path.delimiter).filter(Boolean);
+  for (const dir of (extra ?? "").split(path.delimiter).filter(Boolean)) if (!result.includes(dir)) result.push(dir);
+  return result.join(path.delimiter);
+}
+
+let loginPathPromise: Promise<string | null> | null = null;
+
+/**
+ * PATH du shell de connexion (comme `inheritLoginShellEnv` de Paseo) : `$SHELL -i -l -c`, puis repli
+ * non interactif, chaque tentative coupée après `timeoutMs`. Résultat mis en cache pour la durée du processus.
+ */
+export function loginShellPath(timeoutMs = 10_000): Promise<string | null> {
+  if (process.platform === "win32") return Promise.resolve(null);
+  loginPathPromise ??= (async () => {
+    const shell = process.env.SHELL || "/bin/zsh";
+    const mark = `gar${process.pid}x`;
+    const script = `printf '%s' "${mark}$PATH${mark}"`;
+    for (const flags of [["-i", "-l", "-c"], ["-l", "-c"]]) {
+      try {
+        const proc = Bun.spawn([shell, ...flags, script], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+        const timer = setTimeout(() => proc.kill(), timeoutMs);
+        const output = await new Response(proc.stdout).text();
+        clearTimeout(timer);
+        const found = extractMarked(output, mark);
+        if (found) return found;
+      } catch {
+        // essaie la tentative suivante
+      }
+    }
+    return null;
+  })();
+  return loginPathPromise;
+}
+
+/** Environnement complet pour lancer le démon : PATH du processus + dossiers usuels + shell de connexion. */
+export async function daemonEnv(base: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
+  const login = await loginShellPath();
+  return { ...base, PATH: mergePaths(enrichPath(base.PATH).path, login ?? "") };
+}

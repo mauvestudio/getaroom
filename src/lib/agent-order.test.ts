@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compareAgentSnapshotsByCreation } from "./agent-order";
+import { compareAgentSnapshotsByCreation, pickMostRecentAgent } from "./agent-order";
 
 describe("compareAgentSnapshotsByCreation", () => {
   test("sorts agents by creation time ascending (oldest first)", () => {
@@ -67,4 +67,22 @@ describe("compareAgentSnapshotsByCreation", () => {
 
     expect(list.map((a) => a.id)).toEqual(["agent-nodate", "agent-valid"]);
   });
+});
+
+describe("pickMostRecentAgent", () => {
+  test("préfère la session la plus récemment active, pas la plus ancienne", () => {
+    const agents = [
+      { id: "old", createdAt: "2026-11-17T08:00:00Z", updatedAt: "2026-11-17T10:00:00Z" },
+      { id: "new", createdAt: "2026-11-22T08:00:00Z", updatedAt: "2026-11-24T09:00:00Z" },
+    ];
+    expect(pickMostRecentAgent(agents)?.id).toBe("new");
+  });
+  test("une session en cours passe avant une session plus récente à l'arrêt", () => {
+    const agents = [
+      { id: "running", status: "running", updatedAt: "2026-11-23T09:00:00Z" },
+      { id: "idle", status: "idle", updatedAt: "2026-11-24T09:00:00Z" },
+    ];
+    expect(pickMostRecentAgent(agents)?.id).toBe("running");
+  });
+  test("liste vide", () => expect(pickMostRecentAgent([])).toBeUndefined());
 });

@@ -50,6 +50,7 @@ import { chooseDefaultWorkspace, resolveWorkspaceTarget } from "../lib/workspace
 import { resolveWorkspacePath } from "../lib/resolve-workspace-path";
 import { appendReasoningTimelineItem } from "../lib/paseo/timeline";
 import { getAgentHostId } from "../lib/paseo/multi-host-client";
+import { pickMostRecentAgent } from "../lib/agent-order";
 
 export type ActiveTabKind = "agent" | "terminal" | "changes";
 
@@ -800,7 +801,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       const activeCandidates = curWsId ? filtered : list;
       if (activeCandidates.length > 0) {
         if (!currentActiveId || !list.some((a) => a.id === currentActiveId)) {
-          const fallbackId = activeCandidates[0]!.id;
+          const fallbackId = (pickMostRecentAgent(activeCandidates) ?? activeCandidates[0]!).id;
           setActiveAgentIdState(fallbackId);
           activeAgentIdRef.current = fallbackId;
         } else if (preferredAgentId) {
@@ -1103,6 +1104,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           models: providerModels,
           hostId: p.hostId || "local",
           error: typeof p.error === "string" && p.error.trim() ? p.error.trim() : undefined,
+          daemonEnabled: p.enabled !== false,
         });
       }
 

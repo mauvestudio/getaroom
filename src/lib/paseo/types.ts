@@ -190,6 +190,8 @@ export interface PaseoProviderInfo {
   hostId?: string;
   /** Erreur brute du démon pour ce provider (binaire introuvable, non authentifié…). */
   error?: string;
+  /** Activé dans la configuration du démon (indépendamment de sa disponibilité). */
+  daemonEnabled?: boolean;
 }
 
 export interface AgentMode {

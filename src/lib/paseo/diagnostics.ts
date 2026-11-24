@@ -52,12 +52,26 @@ export interface DiagnosisContext {
   searchedDirs?: string[];
 }
 
+/** Binaire de CLI lancé par le démon pour chaque provider (commande par défaut de Paseo). */
+const PROVIDER_BINARY: Record<string, string> = {
+  claude: "claude", codex: "codex", opencode: "opencode", gemini: "gemini", copilot: "copilot",
+  antigravity: "agy", "mistral-vibe": "vibe", pi: "pi", omp: "omp",
+};
+export const providerBinaryName = (providerId: string): string => PROVIDER_BINARY[providerId.toLowerCase()] ?? providerId.toLowerCase();
+export const KNOWN_PROVIDER_BINARIES = [...new Set(Object.values(PROVIDER_BINARY))];
+
+/** « Provider 'antigravity' is not available… » (message du démon) → « antigravity ». */
+export function providerFromMessage(error: unknown): string | null {
+  const match = /provider\s+['"`]?([\w-]+)['"`]?\s+is not available/i.exec(errorMessage(error));
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
 const HEALTHY_PROVIDER_STATUS = new Set(["available", "active", "ready", "connected", "running"]);
 
 const RE_AUTH = /unauthori[sz]ed|forbidden|\b40[13]\b|invalid (?:token|password)|(?:token|password|session)[^.]{0,20}(?:expired|invalid|expir)|authentication (?:failed|required)|non autoris/i;
 const RE_TIMEOUT = /timeout|timed out|time out|délai|etimedout|deadline/i;
 const RE_NETWORK = /econnrefused|econnreset|ehostunreach|enetunreach|enotfound|network|fetch failed|socket|not connected|disconnected|connection (?:closed|lost|refused)|failed to connect|hors ligne|offline|closed before/i;
-const RE_BINARY_MISSING = /enoent|not found|no such file|command not found|introuvable|cannot find|not installed|spawn .* failed|executable/i;
+const RE_BINARY_MISSING = /is not available|ensure the cli|please install|enoent|not found|no such file|command not found|introuvable|cannot find|not installed|spawn .* failed|executable/i;
 const RE_PROVIDER_AUTH = /log ?in|sign ?in|not authenticated|unauthenticated|api[ _-]?key|credential|authenticat|oauth|connexion requise|non authentifi/i;
 
 export function errorMessage(error: unknown): string {
@@ -137,6 +151,7 @@ export function diagnoseFailure(error: unknown, ctx: DiagnosisContext = {}): Dia
   const base = { hostId: ctx.hostId };
   const label = hostLabel(ctx);
   const state = ctx.hostState;
+  const snapshotProvider: DiagnosisProvider | null | undefined = ctx.provider;
 
   if (state && state !== "connected") {
     const connecting = state === "connecting" || state === "reconnecting";
@@ -162,6 +177,10 @@ export function diagnoseFailure(error: unknown, ctx: DiagnosisContext = {}): Dia
   }
 
   if (providerIsUnhealthy(ctx.provider)) return diagnoseProvider(ctx.provider, raw, ctx);
+
+  // Le démon nomme lui-même le provider défaillant même quand le snapshot n'est pas à jour.
+  const named = providerFromMessage(raw);
+  if (named) return diagnoseProvider({ id: named, label: snapshotProvider?.label, error: snapshotProvider?.error }, raw, ctx);
 
   if (RE_AUTH.test(raw)) {
     return {
@@ -227,3 +246,21 @@ export const DIAGNOSIS_ACTION_LABEL: Record<DiagnosisAction, string> = {
   "restart-daemon": "Redémarrer le démon",
   "refresh-providers": "Actualiser les providers",
 };
+
+/**
+ * Providers activés dans le démon mais indisponibles alors que leur CLI existe sur le disque :
+ * le démon (lancé depuis le Finder) a un PATH minimal et ne les voit pas.
+ */
+export function providersHiddenByDaemonPath(
+  providers: Array<{ id: string; label?: string; status?: string; daemonEnabled?: boolean; hostId?: string }>,
+  binaries: BinaryProbe[],
+): Array<{ id: string; label: string; binary: BinaryProbe }> {
+  const result: Array<{ id: string; label: string; binary: BinaryProbe }> = [];
+  for (const provider of providers) {
+    if ((provider.hostId && provider.hostId !== "local") || provider.daemonEnabled === false) continue;
+    if (provider.status && HEALTHY_PROVIDER_STATUS.has(provider.status.toLowerCase())) continue;
+    const binary = binaries.find((entry) => entry.name === providerBinaryName(provider.id));
+    if (binary?.path) result.push({ id: provider.id, label: provider.label || provider.id, binary });
+  }
+  return result;
+}

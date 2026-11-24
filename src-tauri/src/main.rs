@@ -42,11 +42,82 @@ fn enriched_path(home: &std::path::Path, current: &str) -> String {
     std::env::join_paths(entries).map(|joined| joined.to_string_lossy().into_owned()).unwrap_or_else(|_| current.to_string())
 }
 
+/// PATH du shell de connexion de l'utilisateur, comme `inheritLoginShellEnv` de Paseo :
+/// `$SHELL -i -l -c`, puis repli non interactif. Le shell est tué s'il dépasse `timeout`.
+fn login_shell_path(timeout: Duration) -> Option<String> {
+    let shell = std::env::var("SHELL").ok().filter(|value| !value.is_empty()).unwrap_or_else(|| "/bin/zsh".into());
+    let mark = format!("gar{}x", std::process::id());
+    let script = format!("printf '%s' \"{mark}$PATH{mark}\"");
+    for args in [vec!["-i", "-l", "-c"], vec!["-l", "-c"]] {
+        let Ok(mut child) = Command::new(&shell)
+            .args(&args)
+            .arg(&script)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            continue;
+        };
+        let started = std::time::Instant::now();
+        let finished = loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break true,
+                Ok(None) if started.elapsed() < timeout => thread::sleep(Duration::from_millis(50)),
+                _ => break false,
+            }
+        };
+        if !finished {
+            let _ = child.kill();
+            let _ = child.wait();
+            continue;
+        }
+        let mut output = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            use std::io::Read;
+            let _ = stdout.read_to_string(&mut output);
+        }
+        if let Some(path) = extract_marked(&output, &mark) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn extract_marked(output: &str, mark: &str) -> Option<String> {
+    let start = output.find(mark)? + mark.len();
+    let end = start + output[start..].find(mark)?;
+    let value = output[start..end].trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+/// Ajoute à `base` les dossiers de `extra` qui n'y figurent pas encore, sans changer l'ordre existant.
+fn merge_paths(base: &str, extra: &str) -> String {
+    let mut entries: Vec<std::path::PathBuf> = std::env::split_paths(base).collect();
+    for dir in std::env::split_paths(extra) {
+        if !dir.as_os_str().is_empty() && !entries.contains(&dir) {
+            entries.push(dir);
+        }
+    }
+    std::env::join_paths(entries).map(|joined| joined.to_string_lossy().into_owned()).unwrap_or_else(|_| base.to_string())
+}
+
+/// PATH statique (rapide) : celui du processus + dossiers usuels existants.
 fn user_path() -> String {
     let current = std::env::var("PATH").unwrap_or_default();
     match std::env::var_os("HOME") {
         Some(home) => enriched_path(std::path::Path::new(&home), &current),
         None => current,
+    }
+}
+
+/// PATH complet pour le démon : statique + shell de connexion (mise, asdf, nvm, volta… inclus). Peut prendre
+/// quelques secondes : à n'appeler que depuis un thread d'arrière-plan.
+fn full_user_path() -> String {
+    let base = user_path();
+    match login_shell_path(Duration::from_secs(10)) {
+        Some(login) => merge_paths(&base, &login),
+        None => base,
     }
 }
 
@@ -65,6 +136,7 @@ fn start_local_paseo_if_needed() {
     thread::spawn(|| {
         let address: SocketAddr = ([127, 0, 0, 1], 6767).into();
         let mut failures = 0u32;
+        let path = full_user_path();
         while !EXITING.load(Ordering::SeqCst) {
             if TcpStream::connect_timeout(&address, Duration::from_millis(250)).is_ok() {
                 failures = 0;
@@ -74,7 +146,7 @@ fn start_local_paseo_if_needed() {
             let bundled_cli = "/Applications/Paseo.app/Contents/Resources/bin/paseo";
             let cli = if std::path::Path::new(bundled_cli).is_file() { bundled_cli } else { "paseo" };
             match Command::new(cli)
-                .env("PATH", user_path())
+                .env("PATH", &path)
                 .args(["daemon", "start", "--timeout", "15"])
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
@@ -234,6 +306,18 @@ mod tests {
         assert!(path.contains(&home.join(".bun/bin").to_string_lossy().to_string()));
         assert!(!path.contains(".opencode"));
         let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn extracts_the_marked_path_and_ignores_shell_noise() {
+        assert_eq!(super::extract_marked("noise\nMKa:b:cMK trailing", "MK"), Some("a:b:c".to_string()));
+        assert_eq!(super::extract_marked("MKMK", "MK"), None);
+        assert_eq!(super::extract_marked("no marker", "MK"), None);
+    }
+
+    #[test]
+    fn merge_keeps_base_order_and_skips_duplicates() {
+        assert_eq!(super::merge_paths("/usr/bin:/bin", "/bin:/opt/x:/usr/bin"), "/usr/bin:/bin:/opt/x");
     }
 
     #[test]

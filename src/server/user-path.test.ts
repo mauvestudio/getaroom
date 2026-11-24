@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { enrichPath, findBinary } from "./user-path";
+import { enrichPath, extractMarked, findBinary, mergePaths } from "./user-path";
 
 const home = "/Users/test";
 const present = new Set([
@@ -57,5 +57,17 @@ describe("findBinary", () => {
   });
   test("retourne null si introuvable", () => {
     expect(findBinary("codex", "/usr/bin:/bin", () => false)).toBeNull();
+  });
+});
+
+describe("login shell PATH", () => {
+  test("extractMarked ignore le bruit autour des marqueurs", () => {
+    expect(extractMarked("welcome\nMKa:b:cMK\n", "MK")).toBe("a:b:c");
+    expect(extractMarked("MKMK", "MK")).toBeNull();
+    expect(extractMarked("rien", "MK")).toBeNull();
+  });
+  test("mergePaths conserve l'ordre et évite les doublons", () => {
+    expect(mergePaths("/usr/bin:/bin", "/bin:/opt/x:/usr/bin")).toBe("/usr/bin:/bin:/opt/x");
+    expect(mergePaths(undefined, "/a")).toBe("/a");
   });
 });

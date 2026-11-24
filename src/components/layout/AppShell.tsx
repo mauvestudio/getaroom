@@ -10,6 +10,7 @@ import { useRoom } from "../../context/RoomContext";
 import { usePaseo } from "../../context/PaseoContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { DaemonPathBanner } from "./DaemonPathBanner";
 import { Menu, Search, Bot, FolderKanban, PanelLeftOpen, Settings, LayoutGrid } from "lucide-react";
 
 const SIDEBAR_DEFAULT_WIDTH = 328;
@@ -165,6 +166,8 @@ export function AppShell({ children, drawer }: AppShellProps) {
             </div>
           </>
         )}
+
+        <DaemonPathBanner />
 
         {/* Content Area (Chat & Prompt Composer) */}
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden relative">

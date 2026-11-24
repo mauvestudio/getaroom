@@ -1,13 +1,14 @@
 import { existsSync } from "node:fs";
 import net from "node:net";
+import { KNOWN_PROVIDER_BINARIES } from "../lib/paseo/diagnostics";
 import { getUpstreamWsUrl } from "../lib/paseo/proxy-handler";
-import { childEnv, enrichPath, findBinary } from "./user-path";
+import { daemonEnv, enrichPath, findBinary, loginShellPath, mergePaths } from "./user-path";
 import { guardRoutes, isLocalClient, isTrustedRequest } from "./request-guard";
 import { recordRelayLog } from "./relay-logs";
 
 const BUNDLED_CLI = "/Applications/Paseo.app/Contents/Resources/bin/paseo";
 /** CLI de providers que le démon cherche dans son PATH. */
-export const PROVIDER_BINARIES = ["claude", "codex", "opencode", "gemini"] as const;
+export const PROVIDER_BINARIES = KNOWN_PROVIDER_BINARIES;
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
 let busy = false;
@@ -34,7 +35,7 @@ export function resolvePaseoCli(): string | null {
 }
 
 async function run(cli: string, args: string[], timeoutMs: number): Promise<{ ok: boolean; output: string }> {
-  const proc = Bun.spawn([cli, ...args], { env: childEnv(), stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn([cli, ...args], { env: await daemonEnv(), stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   const timer = setTimeout(() => proc.kill(), timeoutMs);
   try {
     const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
@@ -55,7 +56,7 @@ async function waitUntilReachable(host: string, port: number, totalMs: number): 
 
 export async function daemonStatus() {
   const target = upstream();
-  const { path: searchPath } = enrichPath(process.env.PATH);
+  const searchPath = mergePaths(enrichPath(process.env.PATH).path, (await loginShellPath()) ?? "");
   return {
     local: target.local,
     endpoint: `${target.host}:${target.port}`,

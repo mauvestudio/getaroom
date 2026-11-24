@@ -4,7 +4,7 @@ import { usePaseo } from "../../context/PaseoContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { LOCAL_HOST_ID } from "../../lib/paseo/hosts";
 import { controlLocalDaemon, fetchDaemonStatus, type DaemonStatus } from "../../lib/paseo/daemon-control";
-import { DIAGNOSIS_ACTION_LABEL, diagnoseFailure, type DiagnosisAction } from "../../lib/paseo/diagnostics";
+import { DIAGNOSIS_ACTION_LABEL, diagnoseFailure, providerBinaryName, providerFromMessage, type DiagnosisAction } from "../../lib/paseo/diagnostics";
 import { PressButton } from "./button";
 
 interface Props {
@@ -17,7 +17,8 @@ interface Props {
 }
 
 /** Explique la cause réelle d'un échec Paseo (démon, hôte distant, jeton, provider) et propose l'action adaptée. */
-export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId, className }: Props) {
+export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId: providerProp, className }: Props) {
+  const providerId = providerProp ?? providerFromMessage(error) ?? undefined;
   const { hosts, getHostState, reconnectHost } = usePaseo();
   const { providers, refreshProviders } = useWorkspace();
   const host = hosts.find((candidate) => candidate.id === hostId);
@@ -43,7 +44,7 @@ export function DiagnosticNotice({ error, hostId = LOCAL_HOST_ID, providerId, cl
     isLocal,
     hostState: getHostState(hostId),
     provider: provider ? { id: provider.id, label: provider.label, status: provider.status, enabled: provider.enabled, error: provider.error } : null,
-    binary: providerId ? status?.binaries.find((entry) => entry.name === providerId.toLowerCase()) ?? null : null,
+    binary: providerId ? status?.binaries.find((entry) => entry.name === providerBinaryName(providerId)) ?? null : null,
     searchedDirs: status?.searchedDirs,
   });
 
