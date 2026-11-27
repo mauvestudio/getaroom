@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { guardRoutes } from "./request-guard";
+import { cleanNav, type NavData } from "../components/room/room-nav";
 
 export type RoomFacing = "down" | "left" | "right" | "up";
 export interface RoomPoint { x: number; y: number; facing?: RoomFacing }
@@ -21,6 +22,8 @@ export interface RoomMap {
   sprite?: RoomSprite;
   /** Zones logiques par hôte (invisibles hors mode calibrage). */
   zones?: RoomZone[];
+  /** Navigation : zones praticables et objets solides que les personnages contournent. */
+  nav?: NavData;
 }
 
 const publicRoomsDir = path.join(process.cwd(), "public", "rooms");
@@ -90,6 +93,7 @@ export function validateRoomMap(value: unknown, fallbackId = ""): RoomMap {
     waypoints: map.waypoints || [],
     ...(parseSprite(map.sprite) ? { sprite: parseSprite(map.sprite) } : {}),
     ...(parseZones(map.zones) ? { zones: parseZones(map.zones) } : {}),
+    ...(cleanNav(map.nav) ? { nav: cleanNav(map.nav) } : {}),
   };
 }
 

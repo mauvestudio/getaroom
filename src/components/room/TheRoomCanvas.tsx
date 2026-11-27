@@ -46,10 +46,16 @@ import {
   type RoomZone,
   type ToolActivity,
 } from "./room-scene";
+import { buildNavGrid, expandRoute, snapToWalkable, type NavData, type NavGrid } from "./room-nav";
 import { useAgentActivity, useHostLatency } from "./useRoomLive";
 
 type RoomState = ActivityState | "alert" | "done";
 type PositionKind = ActivityState | "waypoints";
+/** Navigation : sol praticable ou obstacle. Un sommet est repéré par `polygone * NAV_STRIDE + sommet`. */
+type NavKind = "floor" | "solid";
+type HandleKind = PositionKind | NavKind;
+const NAV_STRIDE = 1000;
+const isNavKind = (kind: HandleKind): kind is NavKind => kind === "floor" || kind === "solid";
 
 interface RoomMap {
   id: string;
@@ -62,6 +68,8 @@ interface RoomMap {
   waypoints: Point[];
   sprite?: RoomSprite;
   zones?: RoomZone[];
+  /** Zones praticables et objets solides : les personnages contournent les solides. */
+  nav?: NavData;
 }
 
 interface CharacterDescriptor extends CustomAgentCharacter {
@@ -118,7 +126,7 @@ interface AnimatedAgent {
 
 interface ImageRect { x: number; y: number; width: number; height: number }
 interface AgentHit { id: string; x: number; y: number; radius: number }
-interface CalibrationHit { kind: PositionKind; index: number; x: number; y: number }
+interface CalibrationHit { kind: HandleKind; index: number; x: number; y: number }
 
 const MAP_KEY = "getaroom-the-room-map";
 const DEMO_KEY = "getaroom-the-room-demo";
@@ -181,6 +189,7 @@ function roomPayload(map: RoomMap): RoomMap {
     waypoints: map.waypoints,
     ...(map.sprite ? { sprite: map.sprite } : {}),
     ...(map.zones ? { zones: map.zones } : {}),
+    ...(map.nav ? { nav: map.nav } : {}),
   };
 }
 
@@ -206,8 +215,8 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pressRef = useRef<{ id: string; startX: number; startY: number } | null>(null);
   const grabRef = useRef<{ id: string; pointer: Point } | null>(null);
-  const handleRef = useRef<{ kind: PositionKind; index: number } | null>(null);
-  const rotateStationRef = useRef<(kind: PositionKind, index: number) => void>(() => {});
+  const handleRef = useRef<{ kind: HandleKind; index: number } | null>(null);
+  const rotateStationRef = useRef<(kind: HandleKind, index: number) => void>(() => {});
   const tooltipRef = useRef<HTMLDivElement>(null);
   const imageRectRef = useRef<ImageRect>({ x: 0, y: 0, width: 1, height: 1 });
   const canvasSizeRef = useRef({ width: 1, height: 1, dpr: 1 });
@@ -228,7 +237,7 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
   const activeRef = useRef(active);
   const intersectingRef = useRef(true);
   const visibleRef = useRef(false);
-  const draggingRef = useRef<{ kind: PositionKind; index: number } | null>(null);
+  const draggingRef = useRef<{ kind: HandleKind; index: number } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeMapIdRef = useRef("severance-mdr");
 
@@ -236,6 +245,9 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
   const [mapsStatus, setMapsStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
   const [activeMapId, setActiveMapId] = useState(() => { try { return localStorage.getItem(MAP_KEY) || "severance-mdr"; } catch { return "severance-mdr"; } });
   const [draftMap, setDraftMap] = useState<RoomMap | null>(null);
+  // Rapport largeur/hauteur de l'image du décor (connu au chargement) : sert à rendre les cellules de navigation carrées.
+  const [imageAspect, setImageAspect] = useState(2752 / 1536);
+  const navGridRef = useRef<NavGrid | null>(null);
   const [characters, setCharacters] = useState<CharacterDescriptor[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null);
@@ -244,6 +256,8 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
   const [importOpen, setImportOpen] = useState(false);
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [selectedStation, setSelectedStation] = useState<number | null>(null);
+  const [navSelection, setNavSelection] = useState<{ kind: NavKind; poly: number } | null>(null);
+  const navSelectionRef = useRef<{ kind: NavKind; poly: number } | null>(null);
   const [characterSize, setCharacterSize] = useState(() => {
     try { const stored = Number(localStorage.getItem(SIZE_KEY)); return stored > 0 ? clampSize(stored) : SIZE_DEFAULT; } catch { return SIZE_DEFAULT; }
   });
@@ -350,6 +364,9 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
 
   const sceneAgents = useMemo(() => [...realSceneAgents, ...demoSceneAgents], [realSceneAgents, demoSceneAgents]);
   const activeMap = draftMap;
+  // Recalculée seulement quand les polygones ou l'image changent (pas à chaque image du rendu).
+  const navGrid = useMemo(() => buildNavGrid(activeMap?.nav, imageAspect), [activeMap?.nav, imageAspect]);
+  navGridRef.current = navGrid;
   const focusedAgent = sceneAgents.find((item) => item.id === focusedAgentId) || null;
   const presentAgentIds = useMemo(() => new Set(sceneAgents.flatMap((item) => item.agent ? [item.agent.id] : [])), [sceneAgents]);
   const hoveredAgent = sceneAgents.find((item) => item.id === hoveredId) || null;
@@ -530,6 +547,32 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
     }
     context.restore();
 
+    // Navigation : sols praticables (cyan) et objets solides (rouge), avec leurs sommets déplaçables.
+    const drawNav = (kind: NavKind, polygons: Point[][] | undefined, fill: string, stroke: string) => {
+      (polygons ?? []).forEach((polygon, polygonIndex) => {
+        if (polygon.length < 2) return;
+        const points = polygon.map(toScreen);
+        const selected = navSelectionRef.current?.kind === kind && navSelectionRef.current.poly === polygonIndex;
+        context.save();
+        context.beginPath();
+        points.forEach((point, index) => (index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y)));
+        context.closePath();
+        context.fillStyle = fill;
+        context.fill();
+        context.strokeStyle = stroke;
+        context.lineWidth = selected ? 2.5 : 1.25;
+        context.stroke();
+        context.restore();
+        points.forEach((point, vertex) => {
+          context.fillStyle = selected ? "#fff" : stroke;
+          context.fillRect(point.x - 2.5, point.y - 2.5, 5, 5);
+          calibrationHitsRef.current.push({ kind, index: polygonIndex * NAV_STRIDE + vertex, x: point.x, y: point.y });
+        });
+      });
+    };
+    drawNav("floor", map.nav?.floors, "rgba(60,200,255,.10)", "rgba(60,220,255,.85)");
+    drawNav("solid", map.nav?.solids, "rgba(255,60,60,.22)", "rgba(255,90,90,.9)");
+
     // Aperçu fantôme : le personnage assis, à l'orientation de chaque poste de travail (pivoter = voir le résultat).
     // Sans personnage pour ce décor, l'aperçu montre le design d'origine (fantômes noir et blanc sur Monument).
     const ghost = scene.find((entry) => entry.character)?.character
@@ -629,7 +672,8 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
           if (time < agent.holdUntil) { moving = true; return; }
           agent.holdUntil = 0;
           agent.dropAt = 0;
-          agent.path = agent.pin ? [agent.pin.point] : transitionPath(agent, agent.home, agent.activityState, mapRef.current?.waypoints ?? []);
+          const legs = agent.pin ? [agent.pin.point] : transitionPath(agent, agent.home, agent.activityState, mapRef.current?.waypoints ?? []);
+          agent.path = expandRoute(navGridRef.current, agent, legs);
           agent.pathIndex = 0;
           agent.moving = true;
         }
@@ -747,7 +791,7 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
       const changedMap = current.mapId !== activeMap.id;
       const changedStation = current.stationKey !== assignment.key || distance(current, assignment.point) > .012;
       if (changedMap || changedStation || current.activityState !== item.activityState) {
-        current.path = changedMap ? [assignment.point] : transitionPath(current, assignment.point, item.activityState, activeMap.waypoints);
+        current.path = changedMap ? [assignment.point] : expandRoute(navGridRef.current, current, transitionPath(current, assignment.point, item.activityState, activeMap.waypoints));
         current.pathIndex = 0;
         current.moving = true;
       }
@@ -846,11 +890,16 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
-  const moveCalibrationPoint = (kind: PositionKind, index: number, screen: Point) => {
+  const moveCalibrationPoint = (kind: HandleKind, index: number, screen: Point) => {
     const position = screenToNormalized(screen);
     setDraftMap((current) => {
       if (!current) return current;
       const next = cloneMap(current);
+      if (isNavKind(kind)) {
+        const polygon = (kind === "floor" ? next.nav?.floors : next.nav?.solids)?.[Math.floor(index / NAV_STRIDE)];
+        if (polygon?.[index % NAV_STRIDE]) polygon[index % NAV_STRIDE] = { x: clamp01(position.x), y: clamp01(position.y) };
+        return next;
+      }
       if (kind === "waypoints") next.waypoints[index] = position;
       // Déplacer un poste ne doit pas perdre son orientation (facing).
       else next.positions[kind][index] = { ...next.positions[kind][index], ...position };
@@ -913,6 +962,8 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
         draggingRef.current = { kind: handle.kind, index: handle.index };
         handleRef.current = { kind: handle.kind, index: handle.index };
         setSelectedStation(handle.kind === "working" ? handle.index : null);
+        navSelectionRef.current = isNavKind(handle.kind) ? { kind: handle.kind, poly: Math.floor(handle.index / NAV_STRIDE) } : null;
+        setNavSelection(navSelectionRef.current);
         event.currentTarget.setPointerCapture(event.pointerId);
         schedule();
         return;
@@ -964,8 +1015,9 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
     const ground = screenToNormalized({ x: grab.pointer.x, y: grab.pointer.y + GRAB_LIFT + collar });
     const now = performance.now();
     animated.grabbed = false;
-    animated.x = ground.x;
-    animated.y = ground.y;
+    const landing = snapToWalkable(navGridRef.current, ground);
+    animated.x = landing.x;
+    animated.y = landing.y;
     animated.path = [];
     animated.pathIndex = 0;
     animated.moving = false;
@@ -993,7 +1045,68 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
     queueCalibrationSave();
   };
 
-  const rotateStation = (kind: PositionKind, index: number) => {
+  /** Modifie la navigation du décor (sauvegarde automatique) ; un décor sans plus aucun polygone n'a plus de `nav`. */
+  const editNav = (change: (nav: NavData) => void) => {
+    setDraftMap((current) => {
+      if (!current) return current;
+      const next = cloneMap(current);
+      const nav: NavData = next.nav ?? {};
+      change(nav);
+      if (nav.floors && !nav.floors.length) delete nav.floors;
+      if (nav.solids && !nav.solids.length) delete nav.solids;
+      if (nav.floors || nav.solids) next.nav = nav; else delete next.nav;
+      return next;
+    });
+    queueCalibrationSave();
+  };
+
+  const addNavPolygon = (kind: NavKind) => {
+    // Rectangle de départ au centre de l'image, à retoucher en déplaçant ses sommets.
+    const rect = [{ x: .42, y: .42 }, { x: .58, y: .42 }, { x: .58, y: .58 }, { x: .42, y: .58 }];
+    let created = 0;
+    editNav((nav) => {
+      const list = kind === "floor" ? (nav.floors ??= []) : (nav.solids ??= []);
+      list.push(rect);
+      created = list.length - 1;
+    });
+    navSelectionRef.current = { kind, poly: created };
+    setNavSelection(navSelectionRef.current);
+    setCalibrationStatus(kind === "floor" ? "Sol ajouté : déplace ses sommets." : "Obstacle ajouté : déplace ses sommets.");
+    redrawOnce();
+  };
+
+  const addNavVertex = () => {
+    const selected = navSelectionRef.current;
+    if (!selected) return;
+    editNav((nav) => {
+      const polygon = (selected.kind === "floor" ? nav.floors : nav.solids)?.[selected.poly];
+      if (!polygon) return;
+      // Nouveau sommet au milieu de la plus longue arête.
+      let best = 0;
+      let length = -1;
+      polygon.forEach((point, index) => {
+        const next = polygon[(index + 1) % polygon.length]!;
+        const edge = Math.hypot(next.x - point.x, next.y - point.y);
+        if (edge > length) { length = edge; best = index; }
+      });
+      const a = polygon[best]!;
+      const b = polygon[(best + 1) % polygon.length]!;
+      polygon.splice(best + 1, 0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    });
+    redrawOnce();
+  };
+
+  const removeNavSelection = () => {
+    const selected = navSelectionRef.current;
+    if (!selected) return;
+    editNav((nav) => { (selected.kind === "floor" ? nav.floors : nav.solids)?.splice(selected.poly, 1); });
+    navSelectionRef.current = null;
+    setNavSelection(null);
+    setCalibrationStatus("Forme supprimée.");
+    redrawOnce();
+  };
+
+  const rotateStation = (kind: HandleKind, index: number) => {
     rotateStationRef.current = rotateStation;
     if (kind === "working") setStationFacing(index, "next");
   };
@@ -1116,7 +1229,7 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
         key={activeMap.backgroundUrl}
         src={activeMap.backgroundUrl}
         alt={`Décor ${activeMap.name}`}
-        onLoad={() => { updateImageRect(); draw(); schedule(); }}
+        onLoad={(event) => { const image = event.currentTarget; if (image.naturalWidth && image.naturalHeight) setImageAspect(image.naturalWidth / image.naturalHeight); updateImageRect(); draw(); schedule(); }}
         className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
         draggable={false}
       />}
@@ -1197,6 +1310,16 @@ export function TheRoomCanvas({ active = true }: { active?: boolean }) {
             <PressButton onPress={() => setStationFacing(selectedStation, "next")} className="ml-1 h-8 rounded-md border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted" title="Pivoter (R ou clic droit)">Pivoter ↻</PressButton>
           </div>
         </div>}
+        <div className="mt-2 rounded-lg border border-border/60 p-2">
+          <div className="mb-1.5 text-[10px] font-medium text-foreground">Déplacements · sol et obstacles</div>
+          <div className="flex flex-wrap gap-1">
+            <PressButton onPress={() => addNavPolygon("floor")} className="h-7 rounded-md border border-cyan-400/50 px-2 text-[10px] text-foreground hover:bg-muted" title="Zone où les personnages peuvent marcher">+ Sol</PressButton>
+            <PressButton onPress={() => addNavPolygon("solid")} className="h-7 rounded-md border border-red-400/50 px-2 text-[10px] text-foreground hover:bg-muted" title="Objet que les personnages contournent">+ Obstacle</PressButton>
+            <PressButton onPress={addNavVertex} disabled={!navSelection} className="h-7 rounded-md border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted disabled:opacity-40" title="Ajoute un sommet à la forme sélectionnée">+ Sommet</PressButton>
+            <PressButton onPress={removeNavSelection} disabled={!navSelection} className="h-7 rounded-md border border-border px-2 text-[10px] text-muted-foreground hover:bg-muted disabled:opacity-40" title="Supprime la forme sélectionnée">Supprimer</PressButton>
+          </div>
+          <p className="mt-1.5 max-w-64 text-[9px] leading-relaxed text-muted-foreground">Cyan : sol praticable. Rouge : objet contourné. Glisse un sommet pour l’ajuster ; clique un sommet pour sélectionner sa forme.</p>
+        </div>
         <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-border/60 p-2">
           <span className="flex-1 text-[10px] text-foreground">Hauteur des pieds (marche)</span>
           <PressButton onPress={() => nudgeGround(-0.01)} aria-label="Remonter les personnages" title="Remonter" className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted">↑</PressButton>
