@@ -25,7 +25,7 @@ jobs:
       - name: Package signed app in DMG
         run: |
           rm -f src-tauri/target/release/bundle/dmg/*.dmg
-          hdiutil create -ov -fs HFS+ -volname getaroom -srcfolder src-tauri/target/release/bundle/macos/getaroom.app "src-tauri/target/release/bundle/dmg/getaroom-${GITHUB_REF_NAME}.dmg"
+          ./scripts/make-dmg.sh src-tauri/target/release/bundle/macos/getaroom.app "src-tauri/target/release/bundle/dmg/getaroom-${GITHUB_REF_NAME}.dmg"
       - name: Publish DMG
         uses: softprops/action-gh-release@v2
         with:

@@ -29,16 +29,16 @@ Getaroom adds its own **ROOM**, a visual AI simulator where persistent agents mo
 ## Requirements
 
 - macOS 12 or later; the current release build targets Apple Silicon.
-- A running Paseo daemon for local projects or a reachable remote Paseo host for ROOM. The local default is `ws://127.0.0.1:6767/ws`.
+- The Paseo app installed: getaroom starts the local daemon when needed. A running Paseo daemon is required for local projects or a reachable remote Paseo host for ROOM. The local default is `ws://127.0.0.1:6767/ws`.
 - [Bun](https://bun.sh/) and Rust only when building from source.
 
 getaroom is a **client**. Providers, models, workspaces, sessions and permissions come from Paseo; no separate model API key or `.env` is needed.
 
 ## Install the DMG
 
-1. Download `getaroom_*.dmg` from the project's Releases page.
-2. Open the DMG and drag **getaroom.app** to **Applications**.
-3. Launch the app. On first run, import detected Paseo hosts or use the two-step setup.
+1. Download `getaroom-v*.dmg` from the project's [Releases](https://github.com/mauvestudio/getaroom/releases) page.
+2. Open the DMG and drag **getaroom.app** to **Applications**. The DMG also contains a `LISEZ-MOI.txt` file (install, first launch, troubleshooting; in French and English).
+3. Launch the app: on first launch, right-click **getaroom** in Applications, then **Open**. On first run, import detected Paseo hosts or use the two-step setup.
 
 Release artifacts are ad-hoc signed until a Developer ID certificate is configured. If macOS Gatekeeper blocks a build you trust, inspect its source and release provenance first, then run:
 

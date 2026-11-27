@@ -29,16 +29,16 @@ Getaroom ajoute **ROOM**, un simulateur visuel d’agents IA persistants qui se 
 ## Prérequis
 
 - macOS 12 ou plus récent ; les builds actuels ciblent les Mac Apple Silicon.
-- Un daemon Paseo actif pour les projets locaux, ou un hôte Paseo distant joignable pour ROOM. L’adresse locale par défaut est `ws://127.0.0.1:6767/ws`.
+- L’app Paseo installée : getaroom démarre le daemon local si besoin. Un daemon Paseo actif est nécessaire pour les projets locaux, ou un hôte Paseo distant joignable pour ROOM. L’adresse locale par défaut est `ws://127.0.0.1:6767/ws`.
 - [Bun](https://bun.sh/) et Rust uniquement pour compiler le code source.
 
 getaroom est un **client**. Les fournisseurs, modèles, espaces de travail, sessions et permissions viennent de Paseo ; aucune clé de modèle séparée ni fichier `.env` n’est nécessaire.
 
 ## Installer le DMG
 
-1. Télécharge `getaroom_*.dmg` depuis la page Releases du projet.
-2. Ouvre le DMG et glisse **getaroom.app** dans **Applications**.
-3. Lance l’app. Au premier démarrage, importe les hôtes Paseo détectés ou suis l’assistant en deux étapes.
+1. Télécharge `getaroom-v*.dmg` depuis la page [Releases](https://github.com/mauvestudio/getaroom/releases) du projet.
+2. Ouvre le DMG et glisse **getaroom.app** dans **Applications**. Le DMG contient aussi un `LISEZ-MOI.txt` (installation, premier lancement, dépannage).
+3. Lance l’app : au premier lancement, fais un clic droit sur **getaroom** dans Applications, puis **Ouvrir**. Au premier démarrage, importe les hôtes Paseo détectés ou suis l’assistant en deux étapes.
 
 Les builds sont signés en ad-hoc tant qu’aucun certificat Developer ID n’est configuré. Si Gatekeeper bloque un build dont tu as vérifié la provenance et le code source, exécute :
 

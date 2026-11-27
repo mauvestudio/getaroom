@@ -1,0 +1,82 @@
+getaroom — LISEZ-MOI  /  READ ME
+================================================================================
+
+FRANÇAIS
+--------
+
+getaroom est un client macOS pour Paseo : tes sessions d'agents IA (Claude, Codex,
+OpenCode…) en mode « Dev », des agents persistants et animés en mode « Room », et
+un « Open Space » qui montre tout d'un coup d'œil.
+
+1. INSTALLER
+   Glisse « getaroom » sur le dossier « Applications » (à droite dans cette fenêtre).
+
+2. PREMIER LANCEMENT (important)
+   Cette version n'est pas notarisée par Apple, donc macOS peut refuser de l'ouvrir.
+   - Ouvre le dossier Applications, fais un CLIC DROIT sur « getaroom »,
+     choisis « Ouvrir », puis confirme avec « Ouvrir ». Une seule fois suffit.
+   - Si macOS dit que l'app est « endommagée », ouvre le Terminal et tape :
+         xattr -cr /Applications/getaroom.app
+     (ne le fais que si tu as téléchargé le DMG depuis la page officielle du projet).
+
+3. CE QU'IL TE FAUT
+   - Un Mac Apple Silicon (M1 ou plus récent), macOS 12 ou plus.
+   - L'application Paseo installée. getaroom est un client : il utilise le démon Paseo
+     (par défaut ws://127.0.0.1:6767/ws) et le démarre tout seul s'il est arrêté.
+   - Aucune clé d'API et aucun fichier de configuration : fournisseurs, modèles et
+     sessions viennent de Paseo.
+
+4. PREMIERS PAS
+   - Au premier démarrage, importe les hôtes Paseo détectés ou suis l'assistant.
+   - Open Space : vue d'ensemble. Dev : projets et sessions. Room : agents animés.
+   - Dans Room, Maj + E ouvre le mode calibrage (postes, sol et obstacles).
+
+5. EN CAS DE PROBLÈME
+   - « Le démon Paseo ne voit pas Codex… » : un bandeau propose « Redémarrer le démon »
+     (les agents en cours sont interrompus ; demande de confirmation).
+   - Plus de connexion : vérifie que Paseo est installé ; getaroom relance le démon.
+   - Mettre à jour : télécharge la nouvelle version sur la page Releases et remplace
+     l'app. Tes réglages sont conservés. Sauvegarde/restauration : Réglages →
+     Interface & macOS → Profil & synchronisation.
+
+Page du projet et versions : https://github.com/mauvestudio/getaroom/releases
+
+
+ENGLISH
+-------
+
+getaroom is a macOS client for Paseo: your AI agent sessions (Claude, Codex,
+OpenCode…) in "Dev" mode, persistent animated agents in "Room" mode, and an
+"Open Space" overview.
+
+1. INSTALL
+   Drag "getaroom" onto the "Applications" folder (on the right of this window).
+
+2. FIRST LAUNCH (important)
+   This build is not notarized by Apple, so macOS may refuse to open it.
+   - Open the Applications folder, RIGHT-CLICK "getaroom", choose "Open", then
+     confirm with "Open". You only need to do this once.
+   - If macOS says the app is "damaged", open Terminal and run:
+         xattr -cr /Applications/getaroom.app
+     (only if you downloaded the DMG from the project's official Releases page).
+
+3. REQUIREMENTS
+   - An Apple Silicon Mac (M1 or later), macOS 12 or newer.
+   - The Paseo app installed. getaroom is a client: it uses the Paseo daemon
+     (default ws://127.0.0.1:6767/ws) and starts it for you when it is stopped.
+   - No API key and no config file: providers, models and sessions come from Paseo.
+
+4. GETTING STARTED
+   - On first run, import the detected Paseo hosts or follow the setup.
+   - Open Space: overview. Dev: projects and sessions. Room: animated agents.
+   - In Room, Shift + E opens calibration mode (stations, floor and obstacles).
+
+5. TROUBLESHOOTING
+   - "The Paseo daemon cannot see Codex…": a banner offers "Restart the daemon"
+     (running agents are interrupted; you are asked to confirm).
+   - No connection: make sure Paseo is installed; getaroom restarts the daemon.
+   - Updating: download the new version from the Releases page and replace the app.
+     Your settings are kept. Backup/restore: Settings → Interface & macOS →
+     Profile & synchronization.
+
+Project page and releases: https://github.com/mauvestudio/getaroom/releases
