@@ -497,5 +497,9 @@
   "Afficher ou masquer le panneau latéral": "Show or hide side panel",
   "La session n’a pas pu être créée.": "The session could not be created.",
   "Le message n’a pas pu être envoyé.": "The message could not be sent.",
-  "Brouillon": "Draft"
+  "Brouillon": "Draft",
+  "Raisonnement": "Reasoning",
+  "Réflexion": "Thinking",
+  "raisonnement": "reasoning",
+  "réflexion": "thinking"
 }

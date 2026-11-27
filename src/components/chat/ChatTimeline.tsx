@@ -6,8 +6,7 @@ import { useVisualHistory } from "../../lib/visual-history";
 import { PressButton } from "../ui/button";
 import { UserCard } from "./UserCard";
 import { AssistantMessage } from "./AssistantMessage";
-import { ThinkingTrace } from "./ThinkingTrace";
-import { ToolActivityGroup } from "./ToolActivityGroup";
+import { ActivityGroup } from "./ActivityGroup";
 import { TodoBlock } from "./TodoBlock";
 import { CompactionMarker } from "./CompactionMarker";
 import { ApprovalCard } from "../room/ApprovalCard";
@@ -15,6 +14,7 @@ import { SummaryTurnCard } from "./SummaryTurnCard";
 import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 import { getAgentHostId } from "../../lib/paseo/multi-host-client";
 import { distanceFromBottom, nextPinned } from "../../lib/scroll-pin";
+import { buildChatNodes } from "../../lib/chat-nodes";
 import {
   Sparkles,
   ArrowDown,
@@ -80,6 +80,9 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
   const [userReasoningOverrides, setUserReasoningOverrides] = useState<Record<string, boolean>>({});
   const isSwitchingSessionRef = useRef(false);
   const switchSettleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Une séquence de réflexions et d'actions = une seule ligne (comme Paseo) ; jamais deux lignes d'activité d'affilée.
+  const chatNodes = useMemo(() => buildChatNodes(timeline), [timeline]);
 
   // Group timeline items into conversation turns for Summary Mode
   const turnGroups = useMemo<TurnGroup[]>(() => {
@@ -433,72 +436,26 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
             })
           ) : (
             /* Timeline items */
-            timeline.map((item, index) => {
+            chatNodes.map((node) => {
+              if (node.kind === "activity") {
+                // Replié par défaut ; un nouveau raisonnement en streaming ne doit pas défaire le choix de l'utilisateur.
+                const activityKey = `${activeAgentId || "session"}:activity:${node.firstIndex}`;
+                const isExpanded = userReasoningOverrides[activityKey] ?? false;
+                return (
+                  <ActivityGroup
+                    key={`activity-${node.firstIndex}`}
+                    entries={node.entries}
+                    expanded={isExpanded}
+                    onToggle={() => setUserReasoningOverrides((prev) => ({ ...prev, [activityKey]: !isExpanded }))}
+                  />
+                );
+              }
+              const { item, index } = node;
               switch (item.type) {
                 case "user_message":
                   return <UserCard key={index} item={item} />;
                 case "assistant_message":
                   return <AssistantMessage key={index} item={item} />;
-                case "reasoning": {
-                  let start = index;
-                  // Reasoning chunks and assistant status messages can alternate
-                  // during one Paseo turn. Keep them in one disclosure until the
-                  // next user prompt instead of rendering a new collapsed row for
-                  // every chunk.
-                  while (start > 0 && timeline[start - 1]?.type !== "user_message") start--;
-                  if (timeline.slice(start, index).some((entry) => entry.type === "reasoning")) return null;
-
-                  const texts: string[] = [];
-                  let isStreaming = false;
-                  let durationMs = 0;
-                  let turnId: string | undefined;
-                  for (let cursor = index; cursor < timeline.length; cursor++) {
-                    const next = timeline[cursor];
-                    if (next?.type === "user_message") break;
-                    if (next?.type !== "reasoning") continue;
-                    turnId ||= next.turnId;
-                    if (next.text?.trim()) texts.push(next.text.trim());
-                    if (next.isStreaming) isStreaming = true;
-                    if (next.durationMs) durationMs += next.durationMs;
-                  }
-
-                  const boundary = timeline[start];
-                  const boundaryId = boundary?.type === "user_message"
-                    ? boundary.clientMessageId || boundary.messageId || boundary.timestamp
-                    : undefined;
-                  const reasoningKey = `${activeAgentId || "session"}:${turnId || boundaryId || `index-${start}`}`;
-                  // Match Paseo: reasoning is collapsed by default. Streaming a
-                  // new thought must not override a user's collapse choice.
-                  const isExpanded = userReasoningOverrides[reasoningKey] ?? false;
-
-                  return (
-                    <ThinkingTrace
-                      key={`reasoning-${reasoningKey}`}
-                      text={texts.join("\n\n")}
-                      isStreaming={isStreaming}
-                      durationMs={durationMs || undefined}
-                      isExpanded={isExpanded}
-                      onToggle={() => {
-                        const nextExpanded = !isExpanded;
-                        setUserReasoningOverrides((prev) => ({ ...prev, [reasoningKey]: nextExpanded }));
-                      }}
-                    />
-                  );
-                }
-                case "tool_call": {
-                  // One compact activity row for the whole agent segment, even when
-                  // reasoning or progress items appear between tool calls.
-                  let start = index;
-                  while (start > 0 && timeline[start - 1]?.type !== "user_message" && timeline[start - 1]?.type !== "assistant_message") start--;
-                  if (timeline.slice(start, index).some((entry) => entry.type === "tool_call")) return null;
-                  const calls: ToolCallTimelineItem[] = [];
-                  for (let cursor = index; cursor < timeline.length; cursor++) {
-                    const next = timeline[cursor];
-                    if (next?.type === "user_message" || next?.type === "assistant_message") break;
-                    if (next?.type === "tool_call") calls.push(next);
-                  }
-                  return <ToolActivityGroup key={`tools-${index}`} items={calls} />;
-                }
                 case "todo":
                   return <TodoBlock key={index} item={item} />;
                 case "compaction":

@@ -1310,7 +1310,7 @@ dependencies = [
 
 [[package]]
 name = "getaroom"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "serde_json",
  "tauri",
