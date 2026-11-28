@@ -824,6 +824,8 @@ export class PaseoClient {
     initialPrompt?: string;
     clientMessageId?: string;
     images?: Array<{ data: string; mimeType: string }>;
+    /** Pièces jointes de contexte (ex. contexte d'un fork, tel que renvoyé par buildAgentForkContext). */
+    attachments?: unknown[];
   }): Promise<{ agent: AgentSnapshot }> {
     const agent = await this.daemon.createAgent({
       workspaceId: params.workspaceId || undefined,
@@ -838,8 +840,18 @@ export class PaseoClient {
       initialPrompt: params.initialPrompt,
       clientMessageId: params.clientMessageId,
       images: params.images,
+      ...(params.attachments?.length ? { attachments: params.attachments as any } : {}),
     });
     return { agent: agent as any };
+  }
+
+  /**
+   * Contexte de conversation jusqu'à un message (« Fork chat from here » de Paseo) : une pièce jointe texte à
+   * joindre à la création d'une nouvelle session. `null` si le démon n'a rien à transmettre.
+   */
+  public async buildAgentForkContext(agentId: string, boundaryMessageId?: string): Promise<unknown | null> {
+    const res = await this.daemon.buildAgentForkContext(agentId, boundaryMessageId ? { boundaryMessageId } : undefined);
+    return (res as any)?.attachment ?? null;
   }
 
   public async sendAgentMessage(params: {

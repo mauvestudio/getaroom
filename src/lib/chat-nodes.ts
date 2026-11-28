@@ -73,3 +73,44 @@ export function summarizeActivity(entries: readonly ActivityEntry[]): ActivitySu
 export function formatDuration(ms: number): string | null {
   return ms > 0 ? `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} s` : null;
 }
+
+export interface TurnFooter {
+  /** Index (dans la timeline) du message utilisateur qui ouvre le tour, s'il existe. */
+  userIndex: number | null;
+  /** Durée du tour (message utilisateur → dernière réponse), si les deux horodatages sont connus. */
+  durationMs: number | null;
+  /** Dernier tour terminé de la conversation (ses statistiques sont celles de `agent.lastUsage`). */
+  isLastTurn: boolean;
+}
+
+/**
+ * Comme le « turnFooter » de Paseo : un seul pied par tour, sous la DERNIÈRE réponse de l'agent (avant le message
+ * utilisateur suivant). Le tour en cours n'en a pas tant qu'il tourne. Clé : index de la réponse dans la timeline.
+ */
+export function computeTurnFooters(nodes: readonly ChatNode[], isTurnRunning: boolean): Map<number, TurnFooter> {
+  const footers = new Map<number, TurnFooter>();
+  let userItem: { index: number; timestamp?: string } | null = null;
+  let lastAssistant: { index: number; timestamp?: string } | null = null;
+  const closeTurn = (isLastTurn: boolean) => {
+    if (!lastAssistant) return;
+    const start = userItem?.timestamp ? Date.parse(userItem.timestamp) : NaN;
+    const end = lastAssistant.timestamp ? Date.parse(lastAssistant.timestamp) : NaN;
+    footers.set(lastAssistant.index, {
+      userIndex: userItem?.index ?? null,
+      durationMs: end > start ? end - start : null,
+      isLastTurn,
+    });
+  };
+  for (const node of nodes) {
+    if (node.kind !== "item") continue;
+    if (node.item.type === "user_message") {
+      closeTurn(false);
+      userItem = { index: node.index, timestamp: node.item.timestamp };
+      lastAssistant = null;
+    } else if (node.item.type === "assistant_message") {
+      lastAssistant = { index: node.index, timestamp: node.item.timestamp };
+    }
+  }
+  if (!isTurnRunning) closeTurn(true);
+  return footers;
+}

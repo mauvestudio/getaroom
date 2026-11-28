@@ -22,7 +22,7 @@ import type {
 } from "../../lib/paseo/types";
 import { formatDuration, formatRelativePath, stripCwdFromText } from "../../lib/utils";
 import { extractFilePathFromDiff, resolveDiffStats } from "./diff-utils";
-import { AssistantMessage } from "./AssistantMessage";
+import { AssistantMessage, type AssistantTurnFooter } from "./AssistantMessage";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TodoItemsList } from "./TodoBlock";
 import { PressButton } from "../ui/button";
@@ -35,6 +35,7 @@ interface SummaryTurnCardProps {
   reasonings: ReasoningTimelineItem[];
   todos?: TodoTimelineItem[];
   assistantMessage?: AssistantMessageTimelineItem;
+  assistantFooter?: AssistantTurnFooter;
   isCurrentRunningTurn?: boolean;
   activeAgentCwd?: string;
 }
@@ -121,6 +122,7 @@ export function SummaryTurnCard({
   reasonings,
   todos = [],
   assistantMessage,
+  assistantFooter,
   isCurrentRunningTurn = false,
   activeAgentCwd,
 }: SummaryTurnCardProps) {
@@ -456,7 +458,7 @@ export function SummaryTurnCard({
 
       {/* Bottom: Assistant Response or Working Status */}
       {assistantMessage ? (
-        <AssistantMessage item={assistantMessage} />
+        <AssistantMessage item={assistantMessage} footer={assistantFooter} />
       ) : isCurrentRunningTurn ? (
         <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground select-none">
           <Loader2 className="w-3 h-3 animate-spin text-amber-500/80 shrink-0" />

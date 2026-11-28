@@ -147,6 +147,11 @@ interface WorkspaceContextType {
   setActiveTab: (tab: WorkspaceTabItem | { kind: ActiveTabKind; targetId: string }) => void;
   closeTab: (tab: WorkspaceTabItem) => Promise<void>;
   createAgentTab: (initialPrompt?: string) => Promise<AgentSnapshot | null>;
+  /** « Fork chat from here » (Paseo) : nouvelle session dans le même espace, avec le contexte jusqu'à ce message. */
+  forkFromMessage: (messageId?: string) => Promise<void>;
+  /** Contexte de fork en attente : joint à la création de la prochaine session (brouillon courant). */
+  pendingFork: { sourceTitle: string } | null;
+  clearPendingFork: () => void;
   createTerminalTab: () => Promise<void>;
   openChangesTab: () => void;
   updateAgentTitle: (agentId: string, title: string) => Promise<void>;
@@ -376,6 +381,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const agentListRequestRef = useRef(0);
   const providerListRequestRef = useRef(0);
   const [isNewSessionDraft, setIsNewSessionDraft] = useState(false);
+  const [pendingFork, setPendingFork] = useState<{ sourceTitle: string } | null>(null);
+  const pendingForkAttachmentRef = useRef<unknown | null>(null);
+  const clearPendingFork = useCallback(() => {
+    pendingForkAttachmentRef.current = null;
+    setPendingFork(null);
+  }, []);
+  // Quitter le brouillon (autre session, session créée) abandonne le contexte de fork.
+  useEffect(() => {
+    if (!isNewSessionDraft) clearPendingFork();
+  }, [isNewSessionDraft, clearPendingFork]);
   const newSessionDraftRef = useRef(false);
 
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -2672,6 +2687,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         initialPrompt,
         clientMessageId: messageId,
         images,
+        attachments: pendingForkAttachmentRef.current ? [pendingForkAttachmentRef.current] : undefined,
       });
 
       if (res && res.agent) {
@@ -2929,6 +2945,22 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     [client],
   );
 
+  const forkFromMessage = useCallback(
+    async (messageId?: string) => {
+      const sourceId = activeAgentIdRef.current;
+      if (!sourceId) return;
+      const source = allAgents.find((agent) => agent.id === sourceId);
+      const attachment = await client.buildAgentForkContext(sourceId, messageId);
+      if (!attachment) throw new Error("Le démon n’a renvoyé aucun contexte à forker.");
+      const workspaceId = source?.workspaceId || activeWorkspaceIdRef.current || undefined;
+      await createSession(undefined, workspaceId);
+      // Après createSession (qui passe en brouillon) : l'effet de nettoyage ne doit pas effacer le nouveau contexte.
+      pendingForkAttachmentRef.current = attachment;
+      setPendingFork({ sourceTitle: source?.title || "Session sans titre" });
+    },
+    [allAgents, client, createSession],
+  );
+
   const createAgentTab = useCallback(
     async (initialPrompt?: string): Promise<AgentSnapshot | null> => {
       const agent = await createSession(initialPrompt, activeWorkspaceIdRef.current || undefined);
@@ -3105,6 +3137,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         setActiveTab,
         closeTab,
         createAgentTab,
+        forkFromMessage,
+        pendingFork,
+        clearPendingFork,
         createTerminalTab,
         openChangesTab,
         updateAgentTitle,

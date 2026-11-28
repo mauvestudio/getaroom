@@ -5,7 +5,7 @@ import { TimelineMinimap } from "./TimelineMinimap";
 import { useVisualHistory } from "../../lib/visual-history";
 import { PressButton } from "../ui/button";
 import { UserCard } from "./UserCard";
-import { AssistantMessage } from "./AssistantMessage";
+import { AssistantMessage, type AssistantTurnFooter } from "./AssistantMessage";
 import { ActivityGroup } from "./ActivityGroup";
 import { TodoBlock } from "./TodoBlock";
 import { CompactionMarker } from "./CompactionMarker";
@@ -14,7 +14,7 @@ import { SummaryTurnCard } from "./SummaryTurnCard";
 import { DiagnosticNotice } from "../ui/DiagnosticNotice";
 import { getAgentHostId } from "../../lib/paseo/multi-host-client";
 import { distanceFromBottom, nextPinned } from "../../lib/scroll-pin";
-import { buildChatNodes } from "../../lib/chat-nodes";
+import { buildChatNodes, computeTurnFooters } from "../../lib/chat-nodes";
 import {
   Sparkles,
   ArrowDown,
@@ -60,6 +60,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
     pendingPermissions,
     respondToPermission,
     summaryMode,
+    forkFromMessage,
   } = useWorkspace();
 
   const agentPendingPermissions = useMemo(() => {
@@ -83,6 +84,27 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
 
   // Une séquence de réflexions et d'actions = une seule ligne (comme Paseo) ; jamais deux lignes d'activité d'affilée.
   const chatNodes = useMemo(() => buildChatNodes(timeline), [timeline]);
+  // Pied de tour (Paseo) : copier, forker, statistiques, durée — sous la dernière réponse de chaque tour terminé.
+  const turnFooters = useMemo(() => computeTurnFooters(chatNodes, isTurnRunning), [chatNodes, isTurnRunning]);
+  const canFork = Boolean(activeAgentId) && getAgentHostId(activeAgentId || "") === "local";
+  const footerFor = (index: number, item: { messageId?: string }): AssistantTurnFooter | undefined => {
+    const turn = turnFooters.get(index);
+    if (!turn) return undefined;
+    const usage = turn.isLastTurn ? activeAgent?.lastUsage : undefined;
+    return {
+      durationMs: turn.durationMs,
+      onFork: canFork ? () => forkFromMessage(item.messageId) : undefined,
+      metrics: usage
+        ? {
+            model: activeAgent?.model || undefined,
+            inputTokens: usage.inputTokens,
+            cachedInputTokens: usage.cachedInputTokens,
+            outputTokens: usage.outputTokens,
+            totalCostUsd: usage.totalCostUsd,
+          }
+        : null,
+    };
+  };
 
   // Group timeline items into conversation turns for Summary Mode
   const turnGroups = useMemo<TurnGroup[]>(() => {
@@ -396,23 +418,21 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                       reasonings={group.reasonings}
                       todos={group.todos}
                       assistantMessage={group.assistantMessages[0]}
+                      assistantFooter={group.assistantMessages[0] ? footerFor(timeline.indexOf(group.assistantMessages[0]), group.assistantMessages[0]) : undefined}
                       isCurrentRunningTurn={group.isCurrentRunningTurn}
                       activeAgentCwd={activeAgent?.cwd}
                     />
                   ) : (
                     group.assistantMessages.map((msg, mIdx) => {
-                      const start = group.userMessage?.timestamp ? Date.parse(group.userMessage.timestamp) : NaN;
-                      const end = msg.timestamp ? Date.parse(msg.timestamp) : NaN;
-                      const isLast = mIdx === group.assistantMessages.length - 1;
-                      const workedMs = isLast && !group.isCurrentRunningTurn && end > start ? end - start : undefined;
-                      return <AssistantMessage key={`msg-${mIdx}`} item={msg} workedMs={workedMs} />;
+                      const index = timeline.indexOf(msg);
+                      return <AssistantMessage key={`msg-${mIdx}`} item={msg} footer={index >= 0 ? footerFor(index, msg) : undefined} />;
                     })
                   )}
 
                   {/* Additional assistant messages if more than one in turn */}
                   {hasActivity &&
                     group.assistantMessages.slice(1).map((msg, mIdx) => (
-                      <AssistantMessage key={`extra-msg-${mIdx}`} item={msg} />
+                      <AssistantMessage key={`extra-msg-${mIdx}`} item={msg} footer={footerFor(timeline.indexOf(msg), msg)} />
                     ))}
 
                   {/* In-flight indicator if no activity and running */}
@@ -459,7 +479,7 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                 case "user_message":
                   return <UserCard key={index} item={item} />;
                 case "assistant_message":
-                  return <AssistantMessage key={index} item={item} />;
+                  return <AssistantMessage key={index} item={item} footer={footerFor(index, item)} />;
                 case "todo":
                   return <TodoBlock key={index} item={item} />;
                 case "compaction":

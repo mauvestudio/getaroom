@@ -10,6 +10,7 @@ const AGENT_ID_METHODS = new Set([
   "fetchAgentTimeline", "listProviderSubagents", "listCommands", "cancelAgent", "archiveAgent",
   "updateAgent", "setAgentModel", "setAgentThinking", "setAgentMode", "respondToPermission",
   "setAgentTimelineSubscription", "fetchProviderSubagentTimeline", "sendAgentMessage", "clearAgentAttention", "refreshAgent",
+  "buildAgentForkContext",
 ]);
 
 function splitRemoteId(value: unknown): { hostId: string; id: string } | null {

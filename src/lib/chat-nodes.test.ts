@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildChatNodes, formatDuration, summarizeActivity } from "./chat-nodes";
+import { buildChatNodes, computeTurnFooters, formatDuration, summarizeActivity } from "./chat-nodes";
 import type { TimelineItem } from "./paseo/types";
 
 const reasoning = (text: string, durationMs = 0): TimelineItem => ({ type: "reasoning", text, durationMs });
@@ -58,5 +58,27 @@ describe("résumé", () => {
     expect(formatDuration(5300)).toBe("5.3 s");
     expect(formatDuration(16000)).toBe("16 s");
     expect(formatDuration(0)).toBeNull();
+  });
+});
+
+describe("pied de tour (comme Paseo)", () => {
+  const at = (item: TimelineItem, timestamp: string) => ({ ...item, timestamp } as TimelineItem);
+  test("un seul pied par tour, sous la dernière réponse, avec la durée du tour", () => {
+    const timeline = [
+      at(user("go"), "2026-01-01T10:00:00Z"), assistant("a"), tool("1"), at(assistant("b"), "2026-01-01T10:00:05Z"),
+      at(user("encore"), "2026-01-01T10:01:00Z"), at(assistant("c"), "2026-01-01T10:01:02Z"),
+    ];
+    const footers = computeTurnFooters(buildChatNodes(timeline), false);
+    expect([...footers.keys()]).toEqual([3, 5]);
+    expect(footers.get(3)).toEqual({ userIndex: 0, durationMs: 5000, isLastTurn: false });
+    expect(footers.get(5)).toEqual({ userIndex: 4, durationMs: 2000, isLastTurn: true });
+  });
+  test("le tour en cours n'a pas encore de pied", () => {
+    const footers = computeTurnFooters(buildChatNodes([user("go"), assistant("a"), user("suite"), assistant("b")]), true);
+    expect([...footers.keys()]).toEqual([1]);
+  });
+  test("sans horodatages, pas de durée mais le pied reste", () => {
+    const footers = computeTurnFooters(buildChatNodes([user("go"), assistant("a")]), false);
+    expect(footers.get(1)).toEqual({ userIndex: 0, durationMs: null, isLastTurn: true });
   });
 });

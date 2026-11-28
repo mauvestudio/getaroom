@@ -43,6 +43,8 @@ import {
   Mic,
   ListTodo,
   LoaderCircle,
+  AudioLines,
+  Split,
 } from "lucide-react";
 import { ContextUsagePill } from "../layout/ContextUsagePill";
 
@@ -112,6 +114,8 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
     cancelQueuedFollowup,
     summaryMode,
     setSummaryMode,
+    pendingFork,
+    clearPendingFork,
   } = useWorkspace();
 
   const isDebugRunning =
@@ -686,6 +690,27 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
           </div>
         )}
 
+        {/* Contexte de fork joint (« Fork chat from here ») : envoyé avec le premier message de la nouvelle session */}
+        {pendingFork && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-muted/40 px-2.5 py-1.5 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <Split className="h-3.5 w-3.5 shrink-0 rotate-90 text-muted-foreground" />
+              <span className="truncate text-muted-foreground">
+                Contexte forké de <span className="text-foreground">{pendingFork.sourceTitle}</span>
+              </span>
+            </div>
+            <PressButton
+              type="button"
+              onPress={clearPendingFork}
+              className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
+              title="Retirer le contexte forké"
+              aria-label="Retirer le contexte forké"
+            >
+              <X className="h-3 w-3" />
+            </PressButton>
+          </div>
+        )}
+
         {/* Queued Follow-ups Preview Strip */}
         {activeAgentQueuedFollowups.length > 0 && (
           <div className="space-y-1.5 p-1 pt-0">
@@ -942,20 +967,36 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                 </div>
               )
             ) : (
-              <>{dictationButton}<PressButton
-                type="button"
-                onPress={() => handleSend()}
-                disabled={!hasContent}
-                className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer transition-colors shrink-0 touch-manipulation ${
-                  hasContent
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
-                }`}
-                title="Envoyer le message (Entrée)"
-                aria-label="Envoyer le message"
-              >
-                <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
-              </PressButton></>
+              <>{dictationButton}{!hasContent && speechAvailable ? (
+                // Comme Paseo : composer vide → bouton rond de dictée ; il devient la flèche d'envoi dès qu'il y a du texte.
+                <PressButton
+                  type="button"
+                  onPress={toggleDictation}
+                  aria-pressed={isListening}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center cursor-pointer transition-colors shrink-0 touch-manipulation ${
+                    isListening ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-muted text-foreground hover:bg-muted/70"
+                  }`}
+                  title={isListening ? t("Arrêter la dictée") : t("Dicter un message")}
+                  aria-label={isListening ? t("Arrêter la dictée") : t("Dicter un message")}
+                >
+                  <AudioLines className={`h-4 w-4 ${isListening ? "animate-pulse" : ""}`} />
+                </PressButton>
+              ) : (
+                <PressButton
+                  type="button"
+                  onPress={() => handleSend()}
+                  disabled={!hasContent}
+                  className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium cursor-pointer transition-colors shrink-0 touch-manipulation ${
+                    hasContent
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
+                  }`}
+                  title="Envoyer le message (Entrée)"
+                  aria-label="Envoyer le message"
+                >
+                  <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                </PressButton>
+              )}</>
             )}
           </div>
         </div>
