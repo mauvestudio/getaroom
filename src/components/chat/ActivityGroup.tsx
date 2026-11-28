@@ -1,4 +1,4 @@
-import { ChevronDown, Sparkles, Wrench } from "lucide-react";
+import { Brain, ChevronDown, Wrench } from "lucide-react";
 import type { ActivityEntry } from "../../lib/chat-nodes";
 import { formatDuration, summarizeActivity } from "../../lib/chat-nodes";
 import { useI18n } from "../../i18n/I18nContext";
@@ -41,12 +41,12 @@ export function ActivityGroup({ entries, expanded, onToggle }: ActivityGroupProp
       >
         {tools.length === 0 ? (
           <>
-            {thinking ? <PaseoSyncedLoader className="text-foreground" /> : <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground/60" />}
+            {thinking ? <PaseoSyncedLoader className="text-foreground" /> : <Brain className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />}
             {thinking ? (
               <PaseoShimmerRow label={t("Réflexion")} secondaryLabel={duration ?? undefined} labelClassName="text-[12px]" secondaryClassName="text-[11px] font-mono text-muted-foreground/50" />
             ) : (
               <>
-                <span>{t("Raisonnement")}</span>
+                <span className="text-[13px]">Thinking</span>
                 {duration && <span className="font-mono text-[11px] text-muted-foreground/50">{duration}</span>}
               </>
             )}

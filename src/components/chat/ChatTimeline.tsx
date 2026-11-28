@@ -400,9 +400,13 @@ export function ChatTimeline({ onSelectPrompt }: { onSelectPrompt?: (prompt: str
                       activeAgentCwd={activeAgent?.cwd}
                     />
                   ) : (
-                    group.assistantMessages.map((msg, mIdx) => (
-                      <AssistantMessage key={`msg-${mIdx}`} item={msg} />
-                    ))
+                    group.assistantMessages.map((msg, mIdx) => {
+                      const start = group.userMessage?.timestamp ? Date.parse(group.userMessage.timestamp) : NaN;
+                      const end = msg.timestamp ? Date.parse(msg.timestamp) : NaN;
+                      const isLast = mIdx === group.assistantMessages.length - 1;
+                      const workedMs = isLast && !group.isCurrentRunningTurn && end > start ? end - start : undefined;
+                      return <AssistantMessage key={`msg-${mIdx}`} item={msg} workedMs={workedMs} />;
+                    })
                   )}
 
                   {/* Additional assistant messages if more than one in turn */}

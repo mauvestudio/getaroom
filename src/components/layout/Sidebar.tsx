@@ -1000,7 +1000,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
   // Sous-agents : agent délégué par un autre agent, et parent qui en a en cours.
   const runningDelegates = useMemo(() => countRunningDelegates(allAgents), [allAgents]);
 
-  const renderSessionTitle = (session: AgentSnapshot) => {
+  const renderSessionTitle = (session: AgentSnapshot, branch?: string) => {
     const isDelegated = getParentAgentId(session) !== null;
     const childCount = runningDelegates.get(session.id) ?? 0;
     const hostId = session.hostId;
@@ -1009,7 +1009,7 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
       : undefined;
     const serverLabel = remoteHost ? `Serveur : ${remoteHost}` : undefined;
 
-    return (
+    const titleLine = (
       <div className="flex min-w-0 items-center gap-2 text-sm font-normal">
         <SessionStatusIcon
           state={visualOf(session)}
@@ -1042,6 +1042,17 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
             <Server aria-hidden="true" className="size-3 pointer-events-none" />
           </span>
         )}
+      </div>
+    );
+    if (!branch) return titleLine;
+    // Comme Paseo : titre, puis branche sous le titre (alignée sur le texte, après l'indicateur de statut).
+    return (
+      <div className="flex min-w-0 flex-col gap-0.5">
+        {titleLine}
+        <div className="flex min-w-0 items-center gap-1 pl-6 text-xs text-muted-foreground">
+          <GitBranch aria-hidden="true" className="size-3 shrink-0 pointer-events-none" />
+          <span className="truncate">{branch}</span>
+        </div>
       </div>
     );
   };
@@ -1530,7 +1541,13 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                       aria-expanded={!isProjectCollapsed}
                       title={isProjectCollapsed ? "Déplier le projet" : "Replier le projet"}
                     >
-                      <ProjectIcon project={project} client={client} />
+                      <span className="relative flex size-5 shrink-0 items-center justify-center">
+                        <span className="transition-opacity group-hover:opacity-0"><ProjectIcon project={project} client={client} /></span>
+                        <ChevronRight
+                          aria-hidden="true"
+                          className={`absolute size-4 opacity-0 transition-all group-hover:opacity-100 pointer-events-none ${!isProjectCollapsed ? "rotate-90" : ""}`}
+                        />
+                      </span>
                       <span className="text-sm truncate">
                         {project.name}
                       </span>
@@ -1576,241 +1593,113 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                 {/* Project Body (Direct Sessions + Worktrees + Empty state) */}
                 {!isProjectCollapsed && (
                   <div className="space-y-0.5">
-                    {/* Direct Sessions */}
-                    {directSessions.map((session) => {
-                      const isActive = session.id === activeAgentId;
-                      const elapsed = formatElapsed(session.updatedAt || session.createdAt);
-
-                      return (
-                        <div key={session.id}>
-                          <PressTarget
-                            onPress={() =>
-                              handleSelectSession(
-                                session.id,
-                                session.workspaceId || directWorkspace?.id || project.id,
-                              )
-                            }
-                            className={`flex h-9 items-center justify-between gap-2 rounded-lg pl-4 pr-3 text-sm text-foreground cursor-pointer transition-colors ${
-                              isActive ? "bg-muted/70" : "hover:bg-muted/40"
-                            }`}
-                          >
-                            {renderSessionTitle(session)}
-                            {elapsed && (
-                              <span className="ml-1 shrink-0 text-xs leading-5 text-[var(--foreground-extra-muted)]">
-                                {elapsed}
-                              </span>
-                            )}
-                          </PressTarget>
-                        </div>
-                      );
-                    })}
-
-                    {/* Per-Worktree Sections */}
-                    {worktrees.map((wt) => {
-                      const wtKey = `${project.id}:${wt.branch}`;
-                      const hasWorktreeChildren = wt.sessions.length > 0;
-                      const isWorktreeCollapsed = resolveWorktreeCollapsed(
-                        wtKey,
-                        worktreeCollapseOverrides,
-                        hasWorktreeChildren,
-                      );
-                      const isEditingThisTitle = editingWorkspaceId === wt.workspaceId;
-                      const displayTitle = wt.title?.trim();
-                      const hasDistinctTitle = Boolean(displayTitle && displayTitle !== wt.branch);
-
-                      return (
-                        <div key={wtKey} className="space-y-0.5">
-                          {/* Worktree Header */}
-                          {isEditingThisTitle ? (
-                            <div
-                              className="pl-5 pr-2 py-1 flex items-center gap-1.5 rounded bg-accent/40"
-                              onClick={(e) => e.stopPropagation()}
+                    {/* Workspaces à plat, comme Paseo : une ligne par session (titre + branche), triées par activité */}
+                    {[
+                      ...directSessions.map((session) => ({
+                        session,
+                        branch: directWorkspace?.branch || "main",
+                        workspaceId: session.workspaceId || directWorkspace?.id || project.id,
+                      })),
+                      ...worktrees.flatMap((wt) =>
+                        wt.sessions.map((session) => ({
+                          session,
+                          branch: wt.branch,
+                          workspaceId: session.workspaceId || wt.workspaceId || project.id,
+                        })),
+                      ),
+                    ]
+                      .sort(
+                        (x, y) =>
+                          new Date(y.session.updatedAt || y.session.createdAt || 0).getTime() -
+                          new Date(x.session.updatedAt || x.session.createdAt || 0).getTime(),
+                      )
+                      .map(({ session, branch, workspaceId }) => {
+                        const isActive = session.id === activeAgentId;
+                        const elapsed = formatElapsed(session.updatedAt || session.createdAt);
+                        return (
+                          <div key={session.id}>
+                            <PressTarget
+                              onPress={() => handleSelectSession(session.id, workspaceId)}
+                              className={`flex min-h-[3.25rem] items-center justify-between gap-2 rounded-lg pl-4 pr-3 py-1.5 text-sm text-foreground cursor-pointer transition-colors touch-manipulation ${
+                                isActive ? "bg-muted/70" : "hover:bg-muted/40"
+                              }`}
                             >
-                              <GitFork className="w-3.5 h-3.5 shrink-0 text-primary" />
-                              <input
-                                type="text"
-                                value={editingTitle}
-                                onChange={(e) => setEditingTitle(e.target.value)}
-                                onKeyDown={async (e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    if (editingTitle.trim() && wt.workspaceId) {
-                                      await updateWorkspaceTitle(wt.workspaceId, editingTitle.trim());
-                                    }
-                                    setEditingWorkspaceId(null);
-                                  } else if (e.key === "Escape") {
-                                    setEditingWorkspaceId(null);
-                                  }
-                                }}
-                                className="flex-1 bg-background border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                                autoFocus
-                              />
-                              <PressButton
-                                type="button"
-                                onPress={async () => {
-                                  if (editingTitle.trim() && wt.workspaceId) {
-                                    await updateWorkspaceTitle(wt.workspaceId, editingTitle.trim());
-                                  }
-                                  setEditingWorkspaceId(null);
-                                }}
-                                className="p-0.5 rounded hover:bg-accent text-primary cursor-pointer"
-                                title="Enregistrer le titre"
-                              >
-                                <Check className="w-3 h-3" />
-                              </PressButton>
-                              <PressButton
-                                type="button"
-                                onPress={() => setEditingWorkspaceId(null)}
-                                className="p-0.5 rounded hover:bg-accent text-muted-foreground cursor-pointer"
-                                title="Annuler"
-                              >
-                                <X className="w-3 h-3" />
-                              </PressButton>
-                            </div>
-                          ) : (
-                            <div className="group pl-5 pr-1 py-1 flex items-center justify-between text-muted-foreground hover:text-foreground rounded hover:bg-accent/30 transition-colors">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
-                                {hasWorktreeChildren ? (
-                                  <PressButton
-                                    type="button"
-                                    onPress={() => {
-                                      toggleWorktreeCollapse(wtKey, isWorktreeCollapsed);
-                                    }}
-                                    className="p-1 sm:p-0.5 rounded text-muted-foreground/60 hover:text-foreground cursor-pointer shrink-0 touch-manipulation"
-                                    title={isWorktreeCollapsed ? "Déplier le worktree" : "Replier le worktree"}
-                                    aria-label={isWorktreeCollapsed ? "Déplier le worktree" : "Replier le worktree"}
-                                  >
-                                    <ChevronRight
-                                      className={`w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none transition-transform duration-150 ${
-                                        !isWorktreeCollapsed ? "rotate-90" : ""
-                                      }`}
-                                    />
-                                  </PressButton>
-                                ) : (
-                                  <span className="w-5 sm:w-4 shrink-0" />
-                                )}
-                                <PressTarget
-                                  onPress={() => {
-                                    if (wt.workspaceId) {
-                                      setActiveWorkspaceId(wt.workspaceId);
-                                    }
-                                    if (hasWorktreeChildren) {
-                                      toggleWorktreeCollapse(wtKey, isWorktreeCollapsed);
-                                    }
-                                  }}
-                                  className={`flex items-center gap-1.5 min-w-0 flex-1 touch-manipulation ${
-                                    hasWorktreeChildren || wt.workspaceId ? "cursor-pointer" : "cursor-default"
-                                  }`}
-                                >
-                                  <GitFork className="w-3.5 h-3.5 shrink-0 opacity-70 pointer-events-none" />
-                                  {hasDistinctTitle ? (
-                                    <div className="flex flex-col min-w-0 leading-tight">
-                                      <span className="text-xs font-medium truncate text-foreground">
-                                        {displayTitle}
-                                      </span>
-                                      <span className="text-[10px] font-mono text-muted-foreground/80 truncate">
-                                        {wt.branch}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs font-medium truncate">{wt.branch}</span>
-                                  )}
-                                </PressTarget>
-                              </div>
-                              <div
-                                className={`flex items-center gap-0.5 shrink-0 ${
-                                  isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-                                } transition-opacity`}
-                              >
-                                {wt.workspaceId && (
-                                  <PressButton
-                                    type="button"
-                                    onPress={() => {
-                                      setEditingWorkspaceId(wt.workspaceId);
-                                      setEditingTitle(wt.title || wt.branch);
-                                    }}
-                                    className="p-1 sm:p-0.5 rounded hover:text-foreground hover:bg-accent cursor-pointer touch-manipulation"
-                                    title="Renommer le titre"
-                                    aria-label="Renommer le titre"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none" />
-                                  </PressButton>
-                                )}
-                                <PressButton
-                                  type="button"
-                                  onPress={() => {
-                                    handleNewSession(wt.workspaceId || directWorkspace?.id || project.id);
-                                  }}
-                                  className="p-1 sm:p-0.5 rounded hover:text-foreground hover:bg-accent cursor-pointer touch-manipulation"
-                                  title={`Nouvelle session dans ${wt.branch}`}
-                                  aria-label={`Nouvelle session dans ${wt.branch}`}
-                                >
-                                  <Plus className="w-3.5 h-3.5 sm:w-3 sm:h-3 pointer-events-none" />
-                                </PressButton>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Worktree Sessions */}
-                          {!isWorktreeCollapsed && (
-                            <div className="space-y-0.5">
-                              {wt.sessions.map((session) => {
-                                const isActive = session.id === activeAgentId;
-                                const elapsed = formatElapsed(session.updatedAt || session.createdAt);
-
-                                return (
-                                  <div key={session.id} className="pl-3">
-                                    <PressTarget
-                                      onPress={() =>
-                                        handleSelectSession(
-                                          session.id,
-                                          session.workspaceId || wt.workspaceId || project.id,
-                                        )
-                                      }
-                                      className={`flex h-9 items-center justify-between gap-2 rounded-lg pl-4 pr-3 text-sm text-foreground cursor-pointer transition-colors touch-manipulation ${
-                                        isActive ? "bg-muted/70" : "hover:bg-muted/40"
-                                      }`}
-                                    >
-                                      {renderSessionTitle(session)}
-                                      {elapsed && (
-                                        <span className="ml-1 shrink-0 text-xs leading-5 text-[var(--foreground-extra-muted)]">
-                                          {elapsed}
-                                        </span>
-                                      )}
-                                    </PressTarget>
-                                  </div>
-                                );
-                              })}
-
-                              {/* Empty Worktree State */}
-                              {wt.sessions.length === 0 && (
-                                <div className="pl-9 pr-2 py-0.5">
-                                  <span className="text-[11px] text-muted-foreground/60 select-none">
-                                    Aucune session dans ce worktree.
-                                  </span>
-                                </div>
+                              {renderSessionTitle(session, branch)}
+                              {elapsed && (
+                                <span className="ml-1 shrink-0 self-start pt-0.5 text-xs leading-5 text-[var(--foreground-extra-muted)]">
+                                  {elapsed}
+                                </span>
                               )}
+                            </PressTarget>
+                          </div>
+                        );
+                      })}
 
-                              {/* New Session in Worktree Action Item */}
-                              <div className="pl-9 pr-1 pt-0.5">
+                    {/* Worktrees sans session : une ligne (branche) pour rester accessibles, renommables au survol */}
+                    {worktrees
+                      .filter((wt) => wt.sessions.length === 0)
+                      .map((wt) => {
+                        const wtKey = `${project.id}:${wt.branch}`;
+                        const isEditing = editingWorkspaceId === wt.workspaceId;
+                        const label = wt.title?.trim() || wt.branch;
+                        const commit = async () => {
+                          if (editingTitle.trim() && wt.workspaceId) {
+                            await updateWorkspaceTitle(wt.workspaceId, editingTitle.trim());
+                          }
+                          setEditingWorkspaceId(null);
+                        };
+                        return isEditing ? (
+                          <div key={wtKey} className="flex items-center gap-1.5 rounded-lg bg-accent/40 pl-4 pr-2 py-1.5">
+                            <GitBranch className="size-3.5 shrink-0 text-primary" />
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); void commit(); }
+                                else if (e.key === "Escape") setEditingWorkspaceId(null);
+                              }}
+                              onBlur={() => void commit()}
+                              className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                              autoFocus
+                            />
+                          </div>
+                        ) : (
+                          <div key={wtKey} className="group flex min-h-9 items-center justify-between gap-2 rounded-lg pl-4 pr-2 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground">
+                            <PressTarget
+                              onPress={() => {
+                                if (wt.workspaceId) setActiveWorkspaceId(wt.workspaceId);
+                              }}
+                              className="flex min-w-0 flex-1 items-center gap-2 cursor-pointer touch-manipulation"
+                            >
+                              <GitBranch className="size-3.5 shrink-0 pointer-events-none" />
+                              <span className="truncate">{label}</span>
+                            </PressTarget>
+                            <div className={`flex shrink-0 items-center gap-0.5 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`}>
+                              {wt.workspaceId && (
                                 <PressButton
                                   type="button"
-                                  onPress={() => {
-                                    handleNewSession(wt.workspaceId || directWorkspace?.id || project.id);
-                                  }}
-                                  className="flex h-9 w-full items-center gap-2 rounded-lg pl-4 pr-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
-                                  title={`Nouvelle session dans ${wt.branch}`}
-                                  aria-label={`Nouvelle session dans ${wt.branch}`}
+                                  onPress={() => { setEditingWorkspaceId(wt.workspaceId); setEditingTitle(wt.title || wt.branch); }}
+                                  className="rounded p-1 hover:bg-accent hover:text-foreground cursor-pointer touch-manipulation"
+                                  title="Renommer"
+                                  aria-label="Renommer"
                                 >
-                                  <Plus className="w-3.5 h-3.5 sm:w-3 sm:h-3 opacity-70 shrink-0 pointer-events-none" />
-                                  <span className="truncate">Nouvelle session…</span>
+                                  <Pencil className="size-3 pointer-events-none" />
                                 </PressButton>
-                              </div>
+                              )}
+                              <PressButton
+                                type="button"
+                                onPress={() => handleNewSession(wt.workspaceId || directWorkspace?.id || project.id)}
+                                className="rounded p-1 hover:bg-accent hover:text-foreground cursor-pointer touch-manipulation"
+                                title={`Nouvelle session dans ${wt.branch}`}
+                                aria-label={`Nouvelle session dans ${wt.branch}`}
+                              >
+                                <Plus className="size-3 pointer-events-none" />
+                              </PressButton>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      })}
 
                     {/* New Session Action Item */}
                     <div>
@@ -1825,22 +1714,6 @@ export function Sidebar({ onCloseMobile, isMobile, onOpenSettings, onOpenSearch 
                       >
                         <Plus className="h-4 w-4 shrink-0 pointer-events-none" />
                         <span className="truncate">Nouvelle session…</span>
-                      </PressButton>
-                    </div>
-
-                    {/* New Worktree Action Item */}
-                    <div>
-                      <PressButton
-                        type="button"
-                        onPress={() => {
-                          setTargetWorktreeProject(project);
-                        }}
-                        className="flex h-9 w-full items-center gap-2 rounded-lg pl-4 pr-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors cursor-pointer w-full text-left touch-manipulation"
-                        title={`Nouveau worktree dans ${project.name}`}
-                        aria-label={`Nouveau worktree dans ${project.name}`}
-                      >
-                        <GitFork className="h-4 w-4 shrink-0 pointer-events-none" />
-                        <span className="truncate">Nouveau worktree…</span>
                       </PressButton>
                     </div>
                   </div>

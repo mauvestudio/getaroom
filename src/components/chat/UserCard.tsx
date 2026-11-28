@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Copy, Check, ZoomIn, Navigation, Zap, Clock, ChevronDown, ChevronUp } from "lucide-react";
-import { formatTime } from "../../lib/utils";
 import type { UserMessageTimelineItem, ImageAttachment } from "../../lib/paseo/types";
 import {
   Dialog,
@@ -37,32 +36,7 @@ export function UserCard({ item }: { item: UserMessageTimelineItem }) {
 
   return (
     <div className="group flex flex-col items-end my-4" data-user-message="" data-preview={compactText.slice(0, 160)}>
-      <div className="flex items-center gap-2 mb-1.5 px-1 select-none">
-        <span className="text-[11px] font-medium text-muted-foreground">Vous</span>
-        {behavior && (
-          <span
-            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
-            title={behavior.title}
-          >
-            <behavior.icon className="w-2.5 h-2.5" />
-            {behavior.label}
-          </span>
-        )}
-        {item.timestamp && (
-          <span className="text-[10px] font-mono tabular-nums text-muted-foreground/70">
-            {formatTime(item.timestamp)}
-          </span>
-        )}
-        <PressButton
-          onPress={handleCopy}
-          className="p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground transition-opacity cursor-pointer"
-          title="Copier le message"
-        >
-          {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-        </PressButton>
-      </div>
-
-      <div className="max-w-[85%] rounded-2xl bg-muted/45 px-4 py-2.5 text-foreground">
+      <div className="max-w-[85%] rounded-3xl bg-muted/70 px-5 py-3 text-foreground">
         {displayText ? (
           <>
             <div className="md:hidden flex items-start gap-1.5 min-w-0 max-w-full text-sm leading-6">
@@ -135,6 +109,24 @@ export function UserCard({ item }: { item: UserMessageTimelineItem }) {
           </div>
         )}
       </div>
+
+      {(behavior || true) && (
+        <div className="mt-1 flex items-center gap-2 px-2 select-none">
+          {behavior && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground" title={behavior.title}>
+              <behavior.icon className="w-2.5 h-2.5" />
+              {behavior.label}
+            </span>
+          )}
+          <PressButton
+            onPress={handleCopy}
+            className="p-1 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground transition-opacity cursor-pointer"
+            title="Copier le message"
+          >
+            {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+          </PressButton>
+        </div>
+      )}
 
       {previewImage && (
         <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>

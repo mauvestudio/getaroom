@@ -632,6 +632,28 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
         </div>
       )}
 
+      {/* Pastille de diff (comme Paseo) : lignes ajoutées / supprimées de l'espace de travail */}
+      {(() => {
+        const files = [...(gitStatus?.stagedFiles ?? []), ...(gitStatus?.unstagedFiles ?? [])];
+        const added = files.reduce((n, f) => n + (f.insertions ?? 0), 0);
+        const removed = files.reduce((n, f) => n + (f.deletions ?? 0), 0);
+        if (added + removed === 0) return null;
+        return (
+          <div className="mx-auto mb-2 max-w-3xl">
+            <PressButton
+              type="button"
+              onPress={() => openChangesTab()}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card px-3 py-1.5 font-mono text-xs transition-colors hover:bg-muted/60 cursor-pointer"
+              title="Voir les modifications"
+              aria-label={`${added} lignes ajoutées, ${removed} supprimées : voir les modifications`}
+            >
+              <span className="text-emerald-500">+{added}</span>
+              <span className="text-destructive">-{removed}</span>
+            </PressButton>
+          </div>
+        );
+      })()}
+
       {/* Main Composer Box */}
       <div
         onDrop={(event) => handleDroppedFiles(event.nativeEvent)}
@@ -641,7 +663,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
             textareaRef.current?.focus();
           }
         }}
-        className={`max-w-3xl mx-auto rounded-2xl border ${
+        className={`max-w-3xl mx-auto rounded-3xl border ${
           isDraggingOver
             ? "border-primary ring-2 ring-primary/20 bg-primary/5"
             : "border-border/70 bg-card"
@@ -763,7 +785,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
             <PressButton
               type="button"
               onPress={() => fileInputRef.current?.click()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors touch-manipulation"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors touch-manipulation"
               title={
                 isVisionCapable
                   ? "Joindre une image (modèle avec vision)"
@@ -771,7 +793,7 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
               }
               aria-label="Joindre une image"
             >
-              <Paperclip className="w-4 h-4 text-muted-foreground" />
+              <Plus className="w-5 h-5 text-muted-foreground" />
             </PressButton>
 
             {/* Mode, Model & Effort: hidden on mobile during active turn with text so steering controls fit */}
@@ -781,6 +803,10 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                 isSteeringActive ? "hidden sm:flex" : "flex",
               )}
             >
+              {/* Model & Effort */}
+              <ModelSelector providerFilter={modelProvider} value={newSessionOptions ? draftModel : undefined} onSelect={newSessionOptions ? setDraftModel : undefined} quiet />
+              <EffortSelector providerFilter={modelProvider} value={newSessionOptions ? draftReasoning : undefined} onSelect={newSessionOptions ? setDraftReasoning : undefined} modelId={newSessionOptions ? draftModel : undefined} quiet />
+
               {/* Show a mode picker only when the provider can actually change modes. */}
               {!newSessionOptions && modes.length > 1 && canChangeMode && (
                 <>
@@ -842,10 +868,6 @@ export function PromptComposer({ initialValue = "", modelProvider, newSessionOpt
                   )}
                 </>
               )}
-
-              {/* Model & Effort */}
-              <ModelSelector providerFilter={modelProvider} value={newSessionOptions ? draftModel : undefined} onSelect={newSessionOptions ? setDraftModel : undefined} quiet />
-              <EffortSelector providerFilter={modelProvider} value={newSessionOptions ? draftReasoning : undefined} onSelect={newSessionOptions ? setDraftReasoning : undefined} modelId={newSessionOptions ? draftModel : undefined} quiet />
             </div>
             <PressButton type="button" onPress={() => { setSlashFilter(""); textareaRef.current?.focus(); }} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 hover:text-foreground" title={t("Commandes et skills")} aria-label={t("Commandes et skills")}><Zap className="h-4 w-4" /></PressButton>
             <PressButton type="button" onPress={() => setSummaryMode((value) => !value)} aria-pressed={summaryMode} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-muted/60 ${summaryMode ? "text-foreground" : "text-muted-foreground"}`} title={t("Afficher ou masquer le résumé d’activité")} aria-label={t("Afficher ou masquer le résumé d’activité")}><ListTodo className="h-4 w-4" /></PressButton>
